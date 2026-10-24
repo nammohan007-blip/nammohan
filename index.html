@@ -1,0 +1,2542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Table Cash Counter Portal</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <!-- Chart.js for Visual Analytics & Timelines -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    input[type=number]::-webkit-inner-spin-button, 
+    input[type=number]::-webkit-outer-spin-button { 
+      -webkit-appearance: none; 
+      margin: 0; 
+    }
+    input[type=number] { -moz-appearance: textfield; }
+    @media print {
+      .no-print { display: none !important; }
+      body { background: #ffffff !important; color: #000000 !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen antialiased flex flex-col selection:bg-emerald-500 selection:text-slate-950">
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed top-5 right-5 z-50 transform transition-all duration-300 translate-y-[-150%] opacity-0 pointer-events-none flex items-center gap-3 bg-slate-900 border border-emerald-500/50 text-white px-5 py-3.5 rounded-xl shadow-2xl backdrop-blur-md">
+    <i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-400"></i>
+    <span id="toast-msg" class="text-sm font-medium">Notification</span>
+  </div>
+
+  <!-- App Header -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 font-black text-xl shadow-lg shadow-emerald-500/20">
+          ₹
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-bold text-white tracking-tight flex items-center gap-2">
+            Table Cash Portal
+            <span id="connection-badge" class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Offline/Local Ready
+            </span>
+          </h1>
+          <p class="text-xs text-slate-400 flex items-center gap-1.5">
+            Portal ID: <span id="current-portal-display" class="font-mono text-emerald-300 font-semibold">default-branch</span>
+            <button onclick="promptChangePortalId()" class="hover:text-white underline text-[11px] text-slate-500 ml-1">Change</button>
+          </p>
+        </div>
+      </div>
+
+      <div id="header-actions" class="hidden items-center gap-2.5">
+        <span id="logged-user-display" class="hidden sm:inline text-xs font-semibold text-slate-300 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700"></span>
+        <button onclick="handleLogout()" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded-lg transition-colors">
+          <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Logout
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main View Container -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full flex flex-col justify-center">
+
+    <!-- 1. LOGIN SCREEN -->
+    <div id="login-view" class="w-full max-w-md mx-auto">
+      
+      <!-- Portal Link Share Banner -->
+      <div class="mb-4 p-3.5 bg-slate-900 border border-slate-800 rounded-xl text-xs flex items-center justify-between gap-3">
+        <div class="truncate">
+          <span class="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Online Portal Link</span>
+          <span id="shareable-portal-url" class="font-mono text-emerald-400 text-xs truncate block">Loading link...</span>
+        </div>
+        <button onclick="copyPortalLink()" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 whitespace-nowrap">
+          <i data-lucide="share-2" class="w-3.5 h-3.5"></i> Share
+        </button>
+      </div>
+
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl">
+        <div class="text-center mb-6">
+          <div class="w-12 h-12 bg-emerald-500/10 text-emerald-400 rounded-xl flex items-center justify-center mx-auto mb-3 border border-emerald-500/20">
+            <i data-lucide="lock" class="w-6 h-6"></i>
+          </div>
+          <h2 class="text-xl font-bold text-white">Daily Counter Login</h2>
+          <p class="text-xs text-slate-400 mt-1">Select counter profile & enter password</p>
+        </div>
+
+        <form onsubmit="handleLogin(event)" class="space-y-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Select Account</label>
+            <select id="login-username" class="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-emerald-400 outline-none transition">
+              <!-- Populated dynamically -->
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Password</label>
+            <input 
+              type="password" 
+              id="login-password" 
+              placeholder="Enter password"
+              required
+              class="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-emerald-400 outline-none transition"
+            >
+          </div>
+
+          <button 
+            type="submit" 
+            class="w-full py-2.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-sm transition shadow-lg shadow-emerald-500/20 active:scale-[0.98]">
+            Sign In to Counter
+          </button>
+        </form>
+
+        <div class="mt-6 pt-5 border-t border-slate-800 text-center">
+          <p class="text-[11px] font-mono text-slate-400">
+            Default credentials: <span class="text-slate-200 font-bold">admin123</span> (Admin) & <span class="text-slate-200 font-bold">1234</span> (Employees)
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. EMPLOYEE CASH CALCULATOR VIEW -->
+    <div id="employee-view" class="hidden w-full max-w-4xl mx-auto space-y-6">
+      
+      <!-- Top Status Banner -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <span class="text-xs font-semibold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> Live Counter Register
+            <span id="emp-edit-badge" class="hidden ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">
+              <i data-lucide="pencil" class="w-3 h-3 inline mr-0.5"></i> Edit Mode Active
+            </span>
+          </span>
+          <h2 id="emp-counter-title" class="text-lg font-bold text-white">Employee 1 - Table Cash</h2>
+          <p class="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
+            <i data-lucide="clock" class="w-3.5 h-3.5 text-emerald-400"></i>
+            <span>Submitted At: <strong id="emp-last-timestamp" class="text-emerald-300 font-mono font-semibold">Not yet submitted</strong></span>
+            <span id="emp-resubmit-hint" class="hidden text-[11px] text-amber-400/90 font-medium ml-1.5">(You can edit any quantity and resubmit)</span>
+          </p>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <button onclick="openChangePasswordModal()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold rounded-xl transition flex items-center gap-1.5 shadow">
+            <i data-lucide="key-round" class="w-3.5 h-3.5 text-emerald-400"></i> Change Password
+          </button>
+          <div class="bg-slate-950 border border-slate-800 px-5 py-3 rounded-xl text-right">
+            <span class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold block">Physical Cash Count</span>
+            <span id="emp-top-total" class="mono text-2xl font-black text-emerald-400">₹0.00</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Employee Daily Attendance Marker Card -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl">
+        <div class="flex flex-wrap items-center justify-between gap-2 pb-3 mb-3 border-b border-slate-800">
+          <div class="flex items-center gap-2">
+            <span class="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              <i data-lucide="user-check" class="w-4 h-4"></i>
+            </span>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-200">Daily Shift Attendance Marker</h3>
+          </div>
+          <span id="emp-att-status-pill" class="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+            Not Punched In
+          </span>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
+          <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3">
+            <span class="text-[11px] text-slate-400 block font-medium">Punch In (Shift Start)</span>
+            <div id="emp-punch-in-time" class="mono text-sm font-bold text-white mt-0.5">--:-- --</div>
+          </div>
+          <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3">
+            <span class="text-[11px] text-slate-400 block font-medium">Punch Out (Shift End)</span>
+            <div id="emp-punch-out-time" class="mono text-sm font-bold text-white mt-0.5">--:-- --</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="btn-punch-in" onclick="handlePunchIn()" class="flex-1 py-2 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5 active:scale-95">
+              <i data-lucide="log-in" class="w-3.5 h-3.5"></i> Punch In
+            </button>
+            <button id="btn-punch-out" onclick="handlePunchOut()" class="flex-1 py-2 px-3 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 active:scale-95">
+              <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Punch Out
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Reconciliation with Books of Accounts Card -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl">
+        <div class="flex flex-wrap items-center justify-between gap-2 pb-3 mb-3 border-b border-slate-800">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+            <i data-lucide="book-open" class="w-4 h-4 text-teal-400"></i> Cash Book Reconciliation (Daily Accounts Balance)
+          </h3>
+          <span class="text-[11px] text-slate-400">Compare physical drawer cash with day book balance</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5 items-center">
+          <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3">
+            <label class="block text-xs font-semibold text-teal-300 mb-1 flex items-center gap-1">
+              <i data-lucide="receipt" class="w-3.5 h-3.5"></i> Enteportal Balance (₹)
+            </label>
+            <input 
+              type="number" 
+              id="emp-book-balance" 
+              placeholder="0.00" 
+              step="any"
+              min="0"
+              oninput="recalculateEmployee()"
+              class="mono w-full bg-slate-900 border border-slate-700 focus:border-teal-400 focus:ring-1 focus:ring-teal-400 rounded-lg py-2 px-3 text-base font-bold text-white placeholder-slate-600 outline-none transition"
+            >
+            <span class="text-[10px] text-slate-500 mt-1 block">From Enteportal software</span>
+          </div>
+
+          <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3">
+            <span class="text-xs font-semibold text-slate-400 block mb-1">Physical Cash in Hand</span>
+            <div id="emp-reconcile-physical" class="mono text-xl font-black text-emerald-400">₹0.00</div>
+            <span class="text-[10px] text-slate-500 mt-1 block">Total tallied notes and coins</span>
+          </div>
+
+          <div id="emp-diff-card" class="bg-slate-950/80 border border-slate-800 rounded-xl p-3">
+            <span class="text-xs font-semibold text-slate-400 block mb-1">Tally Difference Status</span>
+            <div id="emp-diff-value" class="mono text-xl font-black text-slate-300">₹0.00</div>
+            <span id="emp-diff-label" class="text-[11px] font-semibold text-slate-400 mt-1 flex items-center gap-1">
+              <span class="w-2 h-2 rounded-full bg-slate-500"></span> Enter Enteportal balance
+            </span>
+          </div>
+        </div>
+
+        <div class="mt-3.5 pt-3 border-t border-slate-800/80">
+          <label class="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
+            <span class="flex items-center gap-1.5">
+              <i data-lucide="message-square" class="w-3.5 h-3.5 text-teal-400"></i> Remarks
+            </span>
+            <span id="comment-hint" class="text-[10px] font-normal text-slate-400 italic">Optional</span>
+          </label>
+          <textarea 
+            id="emp-reconciliation-comment" 
+            rows="2"
+            placeholder="Add any remarks or notes here..."
+            class="w-full bg-slate-950 border border-slate-800 focus:border-teal-400 focus:ring-1 focus:ring-teal-400 rounded-xl p-2.5 text-xs text-white placeholder-slate-600 outline-none resize-none transition"
+          ></textarea>
+        </div>
+      </div>
+
+      <!-- Denomination Table -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+        <div class="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+            <i data-lucide="coins" class="w-4 h-4 text-emerald-400"></i> Cash Denomination Breakdown
+          </h3>
+          <button onclick="clearEmpCounts()" class="text-xs text-slate-400 hover:text-rose-400 transition flex items-center gap-1 font-semibold">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Clear All
+          </button>
+        </div>
+
+        <div class="p-2 sm:p-4 overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="text-[11px] uppercase text-slate-400 border-b border-slate-800">
+                <th class="py-2.5 px-3">Denomination</th>
+                <th class="py-2.5 px-3 text-center">Type</th>
+                <th class="py-2.5 px-3 text-center">Count / Qty</th>
+                <th class="py-2.5 px-3 text-right">Amount (₹)</th>
+              </tr>
+            </thead>
+            <tbody id="denom-rows" class="divide-y divide-slate-800/60 text-sm">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Employee Summary Footer -->
+        <div class="bg-slate-950/80 border-t border-slate-800 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4">
+          <div class="flex items-center gap-6 text-xs">
+            <div>
+              <span class="text-slate-400 block">Total Notes</span>
+              <span id="emp-total-notes" class="mono font-bold text-amber-300 text-sm">0 notes</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block">Total Coins</span>
+              <span id="emp-total-coins" class="mono font-bold text-sky-300 text-sm">0 coins</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block">Total Pieces</span>
+              <span id="emp-total-pieces" class="mono font-bold text-slate-200 text-sm">0 pcs</span>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <button id="emp-save-btn" onclick="saveAndSyncCloud()" class="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-sm transition shadow-lg shadow-emerald-500/20 flex items-center gap-2 active:scale-95">
+              <i id="emp-save-btn-icon" data-lucide="cloud-upload" class="w-4 h-4"></i> 
+              <span id="emp-save-btn-text">Save Table Cash & Enteportal Balance</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. ADMIN DASHBOARD VIEW -->
+    <div id="admin-view" class="hidden w-full max-w-6xl mx-auto space-y-6">
+      
+      <!-- Top Metrics Bar -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+          <div class="flex items-center justify-between text-slate-400 mb-2">
+            <span class="text-xs font-semibold uppercase tracking-wider">Total Store Cash</span>
+            <i data-lucide="vault" class="w-5 h-5 text-emerald-400"></i>
+          </div>
+          <span id="admin-grand-total" class="mono text-2xl sm:text-3xl font-black text-emerald-400">₹0.00</span>
+          <p class="text-[11px] text-slate-400 mt-1">Live sum of all 4 employee registers</p>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+          <div class="flex items-center justify-between text-slate-400 mb-2">
+            <span class="text-xs font-semibold uppercase tracking-wider">Total Currency Notes</span>
+            <i data-lucide="banknote" class="w-5 h-5 text-amber-400"></i>
+          </div>
+          <span id="admin-total-notes" class="mono text-2xl font-bold text-amber-300">0</span>
+          <p class="text-[11px] text-slate-400 mt-1">Notes across all active tables</p>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+          <div class="flex items-center justify-between text-slate-400 mb-2">
+            <span class="text-xs font-semibold uppercase tracking-wider">Total Coins</span>
+            <i data-lucide="circle-dot" class="w-5 h-5 text-sky-400"></i>
+          </div>
+          <span id="admin-total-coins" class="mono text-2xl font-bold text-sky-300">0</span>
+          <p class="text-[11px] text-slate-400 mt-1">Coins across all active tables</p>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+          <div class="flex items-center justify-between text-slate-400 mb-2">
+            <span class="text-xs font-semibold uppercase tracking-wider">On-Duty Staff</span>
+            <i data-lucide="user-check" class="w-5 h-5 text-indigo-400"></i>
+          </div>
+          <span id="admin-active-staff" class="mono text-2xl font-bold text-indigo-300">0 / 4 Active</span>
+          <p class="text-[11px] text-slate-400 mt-1">Punched-in attendance today</p>
+        </div>
+      </div>
+
+      <!-- Action bar with Change Admin Password Button -->
+      <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+        <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+          <i data-lucide="layers" class="w-4 h-4 text-emerald-400"></i> Employee Table Breakdowns
+        </h3>
+        <div class="flex flex-wrap items-center gap-2.5">
+          <button onclick="openHistoryModal()" class="px-3.5 py-2 text-xs font-semibold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-xl transition flex items-center gap-1.5 shadow-md">
+            <i data-lucide="history" class="w-3.5 h-3.5"></i> Complete Ledger History
+          </button>
+          <button onclick="exportHistoryCSV()" class="px-3.5 py-2 text-xs font-semibold bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 border border-teal-500/30 rounded-xl transition flex items-center gap-1.5 shadow-md">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i> Export Ledger (CSV)
+          </button>
+          <button onclick="openEmployeeSettingsModal()" class="px-3.5 py-2 text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-xl transition flex items-center gap-1.5 shadow-md">
+            <i data-lucide="user-cog" class="w-3.5 h-3.5"></i> Edit Staff Names
+          </button>
+          <!-- Dedicated Change Admin Password Button -->
+          <button onclick="openChangeAdminPasswordModal()" class="px-3.5 py-2 text-xs font-semibold bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl transition flex items-center gap-1.5 shadow-md">
+            <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i> Change Admin Password
+          </button>
+          <button onclick="copyAdminSummary()" class="px-3.5 py-2 text-xs font-semibold bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl transition flex items-center gap-1.5 shadow-md shadow-emerald-500/10">
+            <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy WhatsApp Summary
+          </button>
+          <button onclick="window.print()" class="px-3.5 py-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-white rounded-xl border border-slate-700 transition flex items-center gap-1.5">
+            <i data-lucide="printer" class="w-3.5 h-3.5"></i> Print
+          </button>
+          <button onclick="resetAllEmployeeData()" class="px-3.5 py-2 text-xs font-semibold bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-xl transition flex items-center gap-1.5">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Reset Daily Balances
+          </button>
+        </div>
+      </div>
+
+      <!-- Staff Login Time & Attendance Timeline Section -->
+      <div class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 space-y-4 shadow-xl">
+        <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                <i data-lucide="clock-arrow-up" class="w-4 h-4"></i>
+              </span>
+              <h4 class="text-xs font-bold uppercase tracking-wider text-indigo-300">
+                Staff Login &amp; Punch-In Arrival Timeline Analytics
+              </h4>
+            </div>
+            <p class="text-xs text-slate-400 mt-1">Tracks daily employee check-in timestamps, arrival punctuality, and total shift volume</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span id="attendance-total-shifts-badge" class="text-xs font-mono font-bold bg-indigo-950/60 border border-indigo-500/30 text-indigo-300 px-3 py-1.5 rounded-xl shadow">0 Shifts Logged</span>
+          </div>
+        </div>
+
+        <!-- Attendance KPIs -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="bg-slate-950/80 border border-slate-800 p-3.5 rounded-xl">
+            <span class="text-[11px] font-semibold text-slate-400 block">Today's Active On-Duty</span>
+            <div id="att-kpi-active" class="mono text-lg font-bold text-emerald-400 mt-0.5">0 Staff</div>
+          </div>
+          <div class="bg-slate-950/80 border border-slate-800 p-3.5 rounded-xl">
+            <span class="text-[11px] font-semibold text-slate-400 block">Average Punch-In Time</span>
+            <div id="att-kpi-avg-time" class="mono text-lg font-bold text-indigo-300 mt-0.5">--:-- --</div>
+          </div>
+          <div class="bg-slate-950/80 border border-slate-800 p-3.5 rounded-xl">
+            <span class="text-[11px] font-semibold text-slate-400 block">Earliest Arrival Logged</span>
+            <div id="att-kpi-earliest" class="mono text-lg font-bold text-amber-300 mt-0.5">--:-- --</div>
+          </div>
+          <div class="bg-slate-950/80 border border-slate-800 p-3.5 rounded-xl">
+            <span class="text-[11px] font-semibold text-slate-400 block">Completed Shifts</span>
+            <div id="att-kpi-completed" class="mono text-lg font-bold text-teal-300 mt-0.5">0 Staff</div>
+          </div>
+        </div>
+
+        <!-- Attendance Graphs Row -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 pt-1">
+          <div class="lg:col-span-8 bg-slate-950/70 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-3">
+              <h5 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <i data-lucide="trending-up" class="w-4 h-4 text-indigo-400"></i> Punch-In Arrival Time by Date
+              </h5>
+              <span class="text-[10.5px] text-slate-400 font-mono">24-Hr Clock Timeline</span>
+            </div>
+            <div class="relative w-full h-64">
+              <canvas id="staffPunchInTimelineChart"></canvas>
+            </div>
+          </div>
+
+          <div class="lg:col-span-4 bg-slate-950/70 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-3">
+              <h5 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <i data-lucide="calendar" class="w-4 h-4 text-emerald-400"></i> Shifts Logged Per Staff
+              </h5>
+              <span class="text-[10.5px] text-slate-400">Total volume</span>
+            </div>
+            <div class="relative w-full h-64">
+              <canvas id="staffAttendanceFrequencyChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Punches Stream -->
+        <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-4">
+          <h5 class="text-xs font-bold uppercase tracking-wider text-slate-300 mb-2 flex items-center gap-1.5">
+            <i data-lucide="activity" class="w-3.5 h-3.5 text-indigo-400"></i> Recent Staff Login &amp; Punch Log Stream
+          </h5>
+          <div id="attendance-recent-stream" class="divide-y divide-slate-800/60 max-h-48 overflow-y-auto pr-1 text-xs">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Monthly Analytics & Leaderboard Section -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-5">
+        <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+          <div>
+            <span class="text-[11px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+              <i data-lucide="trophy" class="w-4 h-4 text-amber-400"></i> Store Collection Performance
+            </span>
+            <h3 class="text-base font-bold text-white mt-0.5">Staff Cash Collection &amp; Performance Ranking</h3>
+            <p class="text-xs text-slate-400">Cumulative store collections aggregated across all verified submissions</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span id="analytics-total-period" class="text-xs font-mono font-bold bg-slate-950 border border-slate-800 text-emerald-300 px-3.5 py-2 rounded-xl shadow">Total Store Cash: ₹0.00</span>
+          </div>
+        </div>
+
+        <!-- Grand Total Monthly Highlight Bar -->
+        <div class="bg-gradient-to-r from-emerald-950/60 via-slate-900 to-teal-950/60 border border-emerald-500/30 rounded-2xl p-5 flex flex-wrap items-center justify-between gap-4 shadow-xl">
+          <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xl font-black shadow-lg shadow-emerald-500/10">
+              ₹
+            </div>
+            <div>
+              <span class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold block">Total Cumulative Store Collection</span>
+              <h2 id="monthly-store-grand-total" class="mono text-2xl sm:text-3xl font-black text-emerald-400">₹0.00</h2>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-4 text-xs font-mono border-t sm:border-t-0 sm:border-l border-slate-800 pt-3 sm:pt-0 sm:pl-5">
+            <div>
+              <span class="text-slate-400 block text-[10.5px]">Total Submissions</span>
+              <span id="monthly-total-submissions" class="font-bold text-white text-sm">0 entries</span>
+            </div>
+            <div class="h-6 w-px bg-slate-800 hidden sm:block"></div>
+            <div>
+              <span class="text-slate-400 block text-[10.5px]">Top Performer</span>
+              <span id="monthly-top-performer" class="font-bold text-amber-300 text-sm">None</span>
+            </div>
+            <div class="h-6 w-px bg-slate-800 hidden sm:block"></div>
+            <div>
+              <span class="text-slate-400 block text-[10.5px]">Avg / Counter</span>
+              <span id="monthly-avg-counter" class="font-bold text-teal-300 text-sm">₹0.00</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Leaderboard Cards -->
+        <div id="analytics-leaderboard-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <!-- Dynamically populated -->
+        </div>
+
+        <!-- Graphs View -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 pt-2">
+          <div class="lg:col-span-7 bg-slate-950/70 border border-slate-800/80 rounded-xl p-4 flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-3">
+              <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <i data-lucide="bar-chart-3" class="w-4 h-4 text-emerald-400"></i> Cash Volume By Employee (₹)
+              </h4>
+              <span class="text-[11px] text-slate-400">Ranked by volume</span>
+            </div>
+            <div class="relative w-full h-64">
+              <canvas id="monthlyCollectionBarChart"></canvas>
+            </div>
+          </div>
+
+          <div class="lg:col-span-5 bg-slate-950/70 border border-slate-800/80 rounded-xl p-4 flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-3">
+              <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <i data-lucide="pie-chart" class="w-4 h-4 text-sky-400"></i> Collection Share (%)
+              </h4>
+              <span class="text-[11px] text-slate-400">Store Split</span>
+            </div>
+            <div class="relative w-full h-64 flex items-center justify-center">
+              <canvas id="monthlyCollectionPieChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Variance / Discrepancy Chart -->
+        <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-5 mt-4 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="p-1.5 rounded-lg bg-teal-500/10 text-teal-400 border border-teal-500/20">
+                  <i data-lucide="scale" class="w-4 h-4"></i>
+                </span>
+                <h4 class="text-xs font-bold uppercase tracking-wider text-slate-200">
+                  Physical Table Cash vs. Book Balance (Variance Audit)
+                </h4>
+              </div>
+              <p class="text-xs text-slate-400 mt-1">Comparison of actual drawer cash against entered books balance &amp; net discrepancy</p>
+            </div>
+            <div>
+              <div class="bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg text-xs">
+                <span class="text-slate-400 block text-[10px]">Net Store Variance</span>
+                <span id="variance-net-total" class="font-mono font-bold text-emerald-400">₹0.00</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
+            <div class="lg:col-span-8 relative w-full h-72">
+              <canvas id="monthlyVarianceChart"></canvas>
+            </div>
+            <div class="lg:col-span-4 flex flex-col gap-2.5" id="variance-summary-cards">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4 Counters Grid -->
+      <div id="admin-counters-grid" class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+  </main>
+
+  <!-- Complete Audit History Modal (Admin Only) -->
+  <div id="history-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 w-full max-w-4xl rounded-2xl p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+            <i data-lucide="history" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white">Complete Table Cash Submission Ledger</h3>
+            <p class="text-xs text-slate-400">Permanent audit records for all counter submissions and revisions</p>
+          </div>
+        </div>
+        <button onclick="closeHistoryModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Filters & Export -->
+      <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-950/60 p-3 rounded-xl border border-slate-800 shrink-0">
+        <div class="flex items-center gap-2">
+          <label class="text-xs text-slate-400 font-semibold">Filter Counter:</label>
+          <select id="history-filter-user" onchange="renderHistoryList()" class="bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded-lg px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-emerald-400">
+            <option value="all">All Counters</option>
+            <option value="emp1">Counter 1</option>
+            <option value="emp2">Counter 2</option>
+            <option value="emp3">Counter 3</option>
+            <option value="emp4">Counter 4</option>
+          </select>
+        </div>
+        <div class="flex items-center gap-3 text-xs">
+          <span id="history-entry-count" class="mono font-bold text-emerald-400">0 logs</span>
+          <button onclick="exportHistoryCSV()" class="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-lg font-semibold flex items-center gap-1 transition">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i> Export CSV
+          </button>
+        </div>
+      </div>
+
+      <!-- Scrollable History List -->
+      <div id="history-list" class="flex-1 overflow-y-auto space-y-3 pr-1">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <div class="pt-3 border-t border-slate-800 flex justify-end gap-2.5 shrink-0">
+        <button onclick="closeHistoryModal()" class="px-4 py-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition">
+          Close Ledger
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Manage Employee Profiles Modal (Admin Only) -->
+  <div id="settings-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center border border-indigo-500/20">
+            <i data-lucide="user-cog" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white">Manage Employee Profiles</h3>
+            <p class="text-xs text-slate-400">Customize staff names &amp; counter passwords</p>
+          </div>
+        </div>
+        <button onclick="closeEmployeeSettingsModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div id="employee-settings-list" class="space-y-3">
+        <!-- Dynamic list -->
+      </div>
+
+      <div class="pt-3 border-t border-slate-800 flex justify-end gap-2.5">
+        <button onclick="closeEmployeeSettingsModal()" class="px-4 py-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition">
+          Cancel
+        </button>
+        <button onclick="saveEmployeeSettings()" class="px-5 py-2 text-xs font-bold bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl shadow-lg transition flex items-center gap-1.5">
+          <i data-lucide="save" class="w-4 h-4"></i> Save Settings
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NEW: Change Admin Password Modal -->
+  <div id="admin-password-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-amber-500/40 w-full max-w-md rounded-2xl p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center border border-amber-500/20">
+            <i data-lucide="shield-alert" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white">Change Admin Password</h3>
+            <p class="text-xs text-slate-400">Update master administrative login credentials</p>
+          </div>
+        </div>
+        <button onclick="closeChangeAdminPasswordModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form onsubmit="handleAdminPasswordChange(event)" class="space-y-3.5">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Current Admin Password</label>
+          <input type="password" id="admin-cur-password" placeholder="Enter current admin password" required class="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3 py-2 text-sm font-medium focus:ring-1 focus:ring-amber-400 outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">New Admin Password</label>
+          <input type="password" id="admin-new-password" placeholder="Enter new admin password" required class="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3 py-2 text-sm font-medium focus:ring-1 focus:ring-amber-400 outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Confirm New Password</label>
+          <input type="password" id="admin-confirm-password" placeholder="Re-enter new admin password" required class="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3 py-2 text-sm font-medium focus:ring-1 focus:ring-amber-400 outline-none">
+        </div>
+        <p id="admin-pwd-error-msg" class="text-xs text-rose-400 hidden"></p>
+
+        <div class="pt-2 border-t border-slate-800 flex justify-end gap-2.5">
+          <button type="button" onclick="closeChangeAdminPasswordModal()" class="px-4 py-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition">
+            Cancel
+          </button>
+          <button type="submit" class="px-5 py-2 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl shadow-lg transition flex items-center gap-1.5">
+            <i data-lucide="check" class="w-4 h-4"></i> Update Admin Password
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Employee Password Modal -->
+  <div id="emp-password-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+            <i data-lucide="shield-check" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white">Update Your Password</h3>
+            <p id="emp-pwd-subtitle" class="text-xs text-slate-400">Change counter login password</p>
+          </div>
+        </div>
+        <button onclick="closeChangePasswordModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form onsubmit="handleEmployeePasswordChange(event)" class="space-y-3.5">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Current Password</label>
+          <input type="password" id="emp-cur-password" placeholder="Enter current password" required class="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3 py-2 text-sm font-medium focus:ring-1 focus:ring-emerald-400 outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">New Password</label>
+          <input type="password" id="emp-new-password" placeholder="Enter new password" required class="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3 py-2 text-sm font-medium focus:ring-1 focus:ring-emerald-400 outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Confirm New Password</label>
+          <input type="password" id="emp-confirm-password" placeholder="Repeat new password" required class="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3 py-2 text-sm font-medium focus:ring-1 focus:ring-emerald-400 outline-none">
+        </div>
+        <div class="pt-2 border-t border-slate-800 flex justify-end gap-2.5">
+          <button type="button" onclick="closeChangePasswordModal()" class="px-4 py-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition">
+            Cancel
+          </button>
+          <button type="submit" class="px-5 py-2 text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl shadow-lg transition flex items-center gap-1.5">
+            <i data-lucide="check" class="w-4 h-4"></i> Update Password
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Custom Portal ID Modal -->
+  <div id="portal-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-lg bg-teal-500/10 text-teal-400 flex items-center justify-center border border-teal-500/20">
+            <i data-lucide="globe" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white">Set Portal Branch ID</h3>
+            <p class="text-xs text-slate-400">All devices sharing this ID connect to the same ledger</p>
+          </div>
+        </div>
+        <button onclick="closePortalModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Branch / Portal Identifier</label>
+          <input type="text" id="custom-portal-input" placeholder="e.g. main-branch" class="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3 py-2 text-sm font-medium focus:ring-1 focus:ring-teal-400 outline-none">
+        </div>
+        <div class="pt-2 border-t border-slate-800 flex justify-end gap-2.5">
+          <button type="button" onclick="closePortalModal()" class="px-4 py-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition">
+            Cancel
+          </button>
+          <button type="button" onclick="applyCustomPortalId()" class="px-5 py-2 text-xs font-bold bg-teal-500 hover:bg-teal-400 text-slate-950 rounded-xl shadow-lg transition flex items-center gap-1.5">
+            <i data-lucide="check" class="w-4 h-4"></i> Apply ID
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Employee Submission Success Modal -->
+  <div id="submit-success-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-emerald-500/50 w-full max-w-md rounded-2xl p-6 sm:p-7 shadow-2xl shadow-emerald-500/10 space-y-5 text-center">
+      <div class="w-16 h-16 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20">
+        <i data-lucide="check-circle" class="w-9 h-9 text-emerald-400"></i>
+      </div>
+
+      <div>
+        <span id="modal-success-badge" class="text-[11px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
+          Verified &amp; Recorded
+        </span>
+        <h3 id="modal-success-heading" class="text-xl font-bold text-white mt-2">Successfully Submitted!</h3>
+        <p id="modal-success-subtext" class="text-xs text-slate-400 mt-1">Your counter table cash and accounts book balance have been securely recorded.</p>
+      </div>
+
+      <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-4 text-left space-y-2.5 text-xs">
+        <div class="flex items-center justify-between pb-2 border-b border-slate-800/80">
+          <span class="text-slate-400">Staff Counter:</span>
+          <span id="modal-success-user" class="font-bold text-white">Counter 1</span>
+        </div>
+        <div class="flex items-center justify-between pb-2 border-b border-slate-800/80">
+          <span class="text-slate-400">Submitted At:</span>
+          <span id="modal-success-time" class="mono font-semibold text-emerald-300">--</span>
+        </div>
+        <div class="flex items-center justify-between pb-2 border-b border-slate-800/80">
+          <span class="text-slate-400">Physical Cash Count:</span>
+          <span id="modal-success-amount" class="mono font-bold text-emerald-400 text-sm">₹0.00</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-slate-400">Enteportal Balance / Status:</span>
+          <span id="modal-success-reconcile" class="font-semibold text-slate-200">Balanced (₹0.00)</span>
+        </div>
+      </div>
+
+      <div class="pt-2 flex flex-col sm:flex-row gap-2.5">
+        <button type="button" onclick="closeSubmitSuccessModal()" class="w-full py-2.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-sm transition shadow-lg shadow-emerald-500/20 active:scale-[0.98] flex items-center justify-center gap-1.5">
+          <i data-lucide="check" class="w-4 h-4"></i> OK, Continue
+        </button>
+        <button type="button" onclick="closeSubmitSuccessModal(); handleLogout();" class="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-sm transition border border-slate-700 active:scale-[0.98] flex items-center justify-center gap-1.5">
+          <i data-lucide="log-out" class="w-4 h-4"></i> Close &amp; Logout
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="border-t border-slate-800/80 bg-slate-950 py-3.5 text-center text-xs text-slate-500 no-print">
+    Table Cash Counter System • Complete Audit Ledger • Multi-Device Counter Access
+  </footer>
+
+  <!-- Application Logic & State Handlers -->
+  <script>
+    // Currency Formatter
+    function formatINR(val) {
+      return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }).format(val || 0);
+    }
+    window.formatINR = formatINR;
+
+    // Toast Utility
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      const msgEl = document.getElementById('toast-msg');
+      if (!toast || !msgEl) return;
+      msgEl.innerText = msg;
+      toast.classList.remove('translate-y-[-150%]', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+
+      setTimeout(() => {
+        toast.classList.add('translate-y-[-150%]', 'opacity-0');
+        toast.classList.remove('translate-y-0', 'opacity-100');
+      }, 2500);
+    }
+    window.showToast = showToast;
+
+    // Standard INR Denominations
+    window.DENOMINATIONS = [
+      { val: 500, type: 'note', label: '₹500' },
+      { val: 200, type: 'note', label: '₹200' },
+      { val: 100, type: 'note', label: '₹100' },
+      { val: 50,  type: 'note', label: '₹50' },
+      { val: 20,  type: 'note', label: '₹20' },
+      { val: 10,  type: 'note', label: '₹10' },
+      { val: 5,   type: 'coin', label: '₹5' },
+      { val: 2,   type: 'coin', label: '₹2' },
+      { val: 1,   type: 'coin', label: '₹1' }
+    ];
+
+    const DEFAULT_USERS = {
+      admin: { name: 'Store Admin', role: 'admin', password: 'admin123' },
+      emp1:  { name: 'Counter 1 (Employee 1)', role: 'employee', password: '1234' },
+      emp2:  { name: 'Counter 2 (Employee 2)', role: 'employee', password: '1234' },
+      emp3:  { name: 'Counter 3 (Employee 3)', role: 'employee', password: '1234' },
+      emp4:  { name: 'Counter 4 (Employee 4)', role: 'employee', password: '1234' }
+    };
+
+    const DEFAULT_CASH_STATE = {
+      emp1: { 500:0, 200:0, 100:0, 50:0, 20:0, 10:0, 5:0, 2:0, 1:0, bookBalance: 0, comment: '', lastUpdated: null },
+      emp2: { 500:0, 200:0, 100:0, 50:0, 20:0, 10:0, 5:0, 2:0, 1:0, bookBalance: 0, comment: '', lastUpdated: null },
+      emp3: { 500:0, 200:0, 100:0, 50:0, 20:0, 10:0, 5:0, 2:0, 1:0, bookBalance: 0, comment: '', lastUpdated: null },
+      emp4: { 500:0, 200:0, 100:0, 50:0, 20:0, 10:0, 5:0, 2:0, 1:0, bookBalance: 0, comment: '', lastUpdated: null }
+    };
+
+    const DEFAULT_ATTENDANCE_STATE = {
+      emp1: { status: 'not_punched', punchIn: null, punchOut: null },
+      emp2: { status: 'not_punched', punchIn: null, punchOut: null },
+      emp3: { status: 'not_punched', punchIn: null, punchOut: null },
+      emp4: { status: 'not_punched', punchIn: null, punchOut: null }
+    };
+
+    // State Variables
+    window.portalUsers = { ...DEFAULT_USERS };
+    window.portalCashData = { ...DEFAULT_CASH_STATE };
+    window.portalHistoryLogs = [];
+    window.portalAttendance = { ...DEFAULT_ATTENDANCE_STATE };
+    window.portalAttendanceHistory = [];
+    window.currentUser = null;
+    window.activePortalId = localStorage.getItem('active_portal_id') || 'main-branch';
+
+    // Chart instances
+    window.chartInstanceBar = null;
+    window.chartInstancePie = null;
+    window.chartInstanceVariance = null;
+    window.chartInstancePunchTimeline = null;
+    window.chartInstancePunchFreq = null;
+
+    // Load Local Data (Preserves Complete History Permanently)
+    function loadLocalData() {
+      const pid = window.activePortalId;
+      const u = localStorage.getItem(`portal_${pid}_users`);
+      const c = localStorage.getItem(`portal_${pid}_cash`);
+      const h = localStorage.getItem(`portal_${pid}_history`);
+      const a = localStorage.getItem(`portal_${pid}_attendance`);
+      const ah = localStorage.getItem(`portal_${pid}_att_history`);
+
+      if (u) {
+        try { window.portalUsers = { ...DEFAULT_USERS, ...JSON.parse(u) }; } catch(e){}
+      }
+      if (c) {
+        try { window.portalCashData = { ...DEFAULT_CASH_STATE, ...JSON.parse(c) }; } catch(e){}
+      }
+      if (h) {
+        try { window.portalHistoryLogs = JSON.parse(h) || []; } catch(e){}
+      }
+      if (a) {
+        try { window.portalAttendance = { ...DEFAULT_ATTENDANCE_STATE, ...JSON.parse(a) }; } catch(e){}
+      }
+      if (ah) {
+        try { window.portalAttendanceHistory = JSON.parse(ah) || []; } catch(e){}
+      }
+    }
+
+    async function pushToCloud() {
+      const pid = window.activePortalId;
+      localStorage.setItem(`portal_${pid}_users`, JSON.stringify(window.portalUsers));
+      localStorage.setItem(`portal_${pid}_cash`, JSON.stringify(window.portalCashData));
+      localStorage.setItem(`portal_${pid}_history`, JSON.stringify(window.portalHistoryLogs));
+      localStorage.setItem(`portal_${pid}_attendance`, JSON.stringify(window.portalAttendance));
+      localStorage.setItem(`portal_${pid}_att_history`, JSON.stringify(window.portalAttendanceHistory));
+    }
+    window.pushToCloud = pushToCloud;
+
+    // Time Formatting Utilities
+    function getCurrentDateTimeStamp() {
+      const now = new Date();
+      const datePart = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+      const timePart = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+      return `${datePart} at ${timePart}`;
+    }
+    window.getCurrentDateTimeStamp = getCurrentDateTimeStamp;
+
+    function parseTimeToDecimalHours(dateObj) {
+      if (!dateObj || isNaN(dateObj.getTime())) return null;
+      return dateObj.getHours() + (dateObj.getMinutes() / 60) + (dateObj.getSeconds() / 3600);
+    }
+
+    function formatDecimalHoursToString(dec) {
+      if (dec === null || dec === undefined || isNaN(dec)) return "--:-- --";
+      const totalMinutes = Math.round(dec * 60);
+      const hours = Math.floor(totalMinutes / 60) % 24;
+      const minutes = totalMinutes % 60;
+      const period = hours >= 12 ? 'PM' : 'AM';
+      const displayHour = hours % 12 === 0 ? 12 : hours % 12;
+      return `${displayHour < 10 ? '0' : ''}${displayHour}:${minutes < 10 ? '0' : ''}${minutes} ${period}`;
+    }
+
+    function updatePortalDisplays() {
+      const disp = document.getElementById('current-portal-display');
+      if (disp) disp.innerText = window.activePortalId;
+
+      const shareLinkEl = document.getElementById('shareable-portal-url');
+      if (shareLinkEl) {
+        shareLinkEl.innerText = `${window.location.origin}${window.location.pathname}?portal=${encodeURIComponent(window.activePortalId)}`;
+      }
+    }
+
+    function populateLoginDropdown() {
+      const users = window.portalUsers || {};
+      const select = document.getElementById('login-username');
+      if (!select) return;
+      
+      const adminName = users.admin ? users.admin.name : 'Store Admin';
+      const e1 = users.emp1 ? users.emp1.name : 'Counter 1';
+      const e2 = users.emp2 ? users.emp2.name : 'Counter 2';
+      const e3 = users.emp3 ? users.emp3.name : 'Counter 3';
+      const e4 = users.emp4 ? users.emp4.name : 'Counter 4';
+
+      const currentVal = select.value;
+      select.innerHTML = `
+        <option value="admin">${adminName} (All Counters View)</option>
+        <option value="emp1">${e1}</option>
+        <option value="emp2">${e2}</option>
+        <option value="emp3">${e3}</option>
+        <option value="emp4">${e4}</option>
+      `;
+      if (currentVal) select.value = currentVal;
+    }
+
+    function handleLogin(e) {
+      e.preventDefault();
+      const users = window.portalUsers;
+      const username = document.getElementById('login-username').value;
+      const pass = document.getElementById('login-password').value;
+
+      const userConfig = users[username];
+      if (!userConfig || userConfig.password !== pass) {
+        showToast("Incorrect password. Please try again.");
+        return;
+      }
+
+      window.currentUser = { username, ...userConfig };
+      document.getElementById('login-password').value = '';
+      
+      document.getElementById('header-actions').classList.remove('hidden');
+      document.getElementById('header-actions').classList.add('flex');
+      document.getElementById('logged-user-display').innerText = window.currentUser.name;
+
+      document.getElementById('login-view').classList.add('hidden');
+      if (window.currentUser.role === 'admin') {
+        renderAdminDashboard();
+        document.getElementById('admin-view').classList.remove('hidden');
+      } else {
+        renderEmployeeCalculator(true);
+        document.getElementById('employee-view').classList.remove('hidden');
+      }
+
+      showToast(`Welcome, ${window.currentUser.name}`);
+      if (window.lucide) lucide.createIcons();
+    }
+    window.handleLogin = handleLogin;
+
+    function handleLogout() {
+      window.currentUser = null;
+      document.getElementById('header-actions').classList.add('hidden');
+      document.getElementById('header-actions').classList.remove('flex');
+      document.getElementById('employee-view').classList.add('hidden');
+      document.getElementById('admin-view').classList.add('hidden');
+      document.getElementById('login-view').classList.remove('hidden');
+      populateLoginDropdown();
+      showToast("Logged out successfully");
+      if (window.lucide) lucide.createIcons();
+    }
+    window.handleLogout = handleLogout;
+
+    // Step +/- Handler
+    function stepCount(denomVal, delta) {
+      const input = document.getElementById(`qty-${denomVal}`);
+      let cur = parseInt(input.value) || 0;
+      cur = Math.max(0, cur + delta);
+      input.value = cur === 0 ? '' : cur;
+      recalculateEmployee();
+    }
+    window.stepCount = stepCount;
+
+    // Attendance Handlers
+    async function handlePunchIn() {
+      if (!window.currentUser || window.currentUser.role !== 'employee') return;
+      const u = window.currentUser.username;
+      const stamp = getCurrentDateTimeStamp();
+      const epoch = Date.now();
+
+      window.portalAttendance[u] = {
+        status: 'on_duty',
+        punchIn: stamp,
+        punchOut: null
+      };
+
+      window.portalAttendanceHistory.unshift({
+        type: 'PUNCH_IN',
+        username: u,
+        staffName: window.currentUser.name,
+        timestampStr: stamp,
+        timestampEpoch: epoch
+      });
+
+      await pushToCloud();
+      renderEmployeeCalculator(false);
+      showToast(`Punched In at ${stamp}`);
+    }
+    window.handlePunchIn = handlePunchIn;
+
+    async function handlePunchOut() {
+      if (!window.currentUser || window.currentUser.role !== 'employee') return;
+      const u = window.currentUser.username;
+      const stamp = getCurrentDateTimeStamp();
+      const epoch = Date.now();
+
+      const cur = window.portalAttendance[u] || {};
+      window.portalAttendance[u] = {
+        status: 'completed',
+        punchIn: cur.punchIn || stamp,
+        punchOut: stamp
+      };
+
+      window.portalAttendanceHistory.unshift({
+        type: 'PUNCH_OUT',
+        username: u,
+        staffName: window.currentUser.name,
+        timestampStr: stamp,
+        timestampEpoch: epoch
+      });
+
+      await pushToCloud();
+      renderEmployeeCalculator(false);
+      showToast(`Punched Out at ${stamp}`);
+    }
+    window.handlePunchOut = handlePunchOut;
+
+    // Render Employee View
+    function renderEmployeeCalculator(resetFromData = true) {
+      if (!window.currentUser || window.currentUser.role !== 'employee') return;
+
+      const users = window.portalUsers;
+      const myInfo = users[window.currentUser.username] || window.currentUser;
+      document.getElementById('emp-counter-title').innerText = `${myInfo.name} - Table Cash`;
+      
+      const counts = (window.portalCashData && window.portalCashData[window.currentUser.username]) || {};
+      const hasExistingSubmission = !!counts.lastUpdated;
+      
+      const stampEl = document.getElementById('emp-last-timestamp');
+      if (stampEl) stampEl.innerText = counts.lastUpdated || 'Not yet submitted today';
+
+      const editBadge = document.getElementById('emp-edit-badge');
+      const resubmitHint = document.getElementById('emp-resubmit-hint');
+      const saveBtnText = document.getElementById('emp-save-btn-text');
+      const saveBtnIcon = document.getElementById('emp-save-btn-icon');
+
+      if (hasExistingSubmission) {
+        if (editBadge) editBadge.classList.remove('hidden');
+        if (resubmitHint) resubmitHint.classList.remove('hidden');
+        if (saveBtnText) saveBtnText.innerText = 'Update & Resubmit Table Cash';
+        if (saveBtnIcon) saveBtnIcon.setAttribute('data-lucide', 'refresh-cw');
+      } else {
+        if (editBadge) editBadge.classList.add('hidden');
+        if (resubmitHint) resubmitHint.classList.add('hidden');
+        if (saveBtnText) saveBtnText.innerText = 'Save Table Cash & Enteportal Balance';
+        if (saveBtnIcon) saveBtnIcon.setAttribute('data-lucide', 'cloud-upload');
+      }
+
+      // Update Attendance Card UI
+      const attInfo = (window.portalAttendance && window.portalAttendance[window.currentUser.username]) || { status: 'not_punched' };
+      const attPill = document.getElementById('emp-att-status-pill');
+      const inEl = document.getElementById('emp-punch-in-time');
+      const outEl = document.getElementById('emp-punch-out-time');
+      const btnIn = document.getElementById('btn-punch-in');
+      const btnOut = document.getElementById('btn-punch-out');
+
+      if (inEl) inEl.innerText = attInfo.punchIn || '--:-- --';
+      if (outEl) outEl.innerText = attInfo.punchOut || '--:-- --';
+
+      if (attPill) {
+        if (attInfo.status === 'on_duty') {
+          attPill.innerText = 'Active On Duty';
+          attPill.className = 'text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30';
+          if (btnIn) btnIn.disabled = true;
+          if (btnIn) btnIn.className = 'flex-1 py-2 px-3 bg-slate-800 text-slate-500 rounded-xl text-xs font-bold cursor-not-allowed';
+          if (btnOut) btnOut.disabled = false;
+          if (btnOut) btnOut.className = 'flex-1 py-2 px-3 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 font-bold rounded-xl text-xs transition';
+        } else if (attInfo.status === 'completed') {
+          attPill.innerText = 'Shift Completed';
+          attPill.className = 'text-[11px] font-bold px-2.5 py-1 rounded-full bg-teal-500/10 text-teal-300 border border-teal-500/30';
+          if (btnIn) btnIn.disabled = false;
+          if (btnIn) btnIn.className = 'flex-1 py-2 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition';
+          if (btnOut) btnOut.disabled = true;
+          if (btnOut) btnOut.className = 'flex-1 py-2 px-3 bg-slate-800 text-slate-500 rounded-xl text-xs font-bold cursor-not-allowed';
+        } else {
+          attPill.innerText = 'Not Punched In';
+          attPill.className = 'text-[11px] font-semibold px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700';
+          if (btnIn) btnIn.disabled = false;
+          if (btnIn) btnIn.className = 'flex-1 py-2 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition';
+          if (btnOut) btnOut.disabled = true;
+          if (btnOut) btnOut.className = 'flex-1 py-2 px-3 bg-slate-800 text-slate-500 rounded-xl text-xs font-bold cursor-not-allowed';
+        }
+      }
+
+      const bookBalInput = document.getElementById('emp-book-balance');
+      if (bookBalInput && resetFromData) {
+        bookBalInput.value = (counts.bookBalance !== undefined && counts.bookBalance !== null && counts.bookBalance !== '') ? counts.bookBalance : '';
+      }
+
+      const commentInput = document.getElementById('emp-reconciliation-comment');
+      if (commentInput && resetFromData) {
+        commentInput.value = counts.comment || '';
+      }
+
+      const tbody = document.getElementById('denom-rows');
+      if (!resetFromData && tbody && tbody.children.length > 0) {
+        recalculateEmployee();
+        return;
+      }
+
+      if (tbody) {
+        tbody.innerHTML = '';
+        window.DENOMINATIONS.forEach(d => {
+          const qty = counts[d.val] || '';
+          const tr = document.createElement('tr');
+          tr.className = "hover:bg-slate-800/40 transition-colors";
+          tr.innerHTML = `
+            <td class="py-2.5 px-3">
+              <span class="font-bold mono text-sm text-slate-100">${d.label}</span>
+            </td>
+            <td class="py-2.5 px-3 text-center">
+              ${d.type === 'note' 
+                ? '<span class="text-[11px] font-semibold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">Note</span>' 
+                : '<span class="text-[11px] font-semibold text-sky-300 bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/20">Coin</span>'}
+            </td>
+            <td class="py-2.5 px-3 text-center">
+              <div class="flex items-center justify-center gap-1.5">
+                <button type="button" onclick="stepCount(${d.val}, -1)" class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-bold flex items-center justify-center border border-slate-700 active:scale-95 transition">-</button>
+                <input 
+                  type="number" 
+                  id="qty-${d.val}" 
+                  min="0" 
+                  placeholder="0" 
+                  value="${qty}"
+                  oninput="recalculateEmployee()"
+                  onfocus="this.select()"
+                  class="mono w-20 text-center bg-slate-950 border border-slate-700 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 rounded-lg py-1 px-2 text-sm font-bold text-white placeholder-slate-600 outline-none transition"
+                >
+                <button type="button" onclick="stepCount(${d.val}, 1)" class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-bold flex items-center justify-center border border-slate-700 active:scale-95 transition">+</button>
+              </div>
+            </td>
+            <td class="py-2.5 px-3 text-right mono font-bold text-slate-200" id="subtotal-${d.val}">
+              ₹0.00
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+
+      recalculateEmployee();
+      if (window.lucide) lucide.createIcons();
+    }
+    window.renderEmployeeCalculator = renderEmployeeCalculator;
+
+    function recalculateEmployee() {
+      let totalAmount = 0;
+      let totalNotes = 0;
+      let totalCoins = 0;
+
+      window.DENOMINATIONS.forEach(d => {
+        const input = document.getElementById(`qty-${d.val}`);
+        const qty = input ? (parseInt(input.value) || 0) : 0;
+        const subtotal = qty * d.val;
+        totalAmount += subtotal;
+
+        if (d.type === 'note') totalNotes += qty;
+        else totalCoins += qty;
+
+        const subEl = document.getElementById(`subtotal-${d.val}`);
+        if (subEl) subEl.innerText = formatINR(subtotal);
+      });
+
+      const topTotalEl = document.getElementById('emp-top-total');
+      if (topTotalEl) topTotalEl.innerText = formatINR(totalAmount);
+
+      const reconcilePhysicalEl = document.getElementById('emp-reconcile-physical');
+      if (reconcilePhysicalEl) reconcilePhysicalEl.innerText = formatINR(totalAmount);
+
+      const notesEl = document.getElementById('emp-total-notes');
+      if (notesEl) notesEl.innerText = `${totalNotes} notes`;
+
+      const coinsEl = document.getElementById('emp-total-coins');
+      if (coinsEl) coinsEl.innerText = `${totalCoins} coins`;
+
+      const pcsEl = document.getElementById('emp-total-pieces');
+      if (pcsEl) pcsEl.innerText = `${totalNotes + totalCoins} pcs`;
+
+      // Book Balance Reconciliation Logic
+      const bookInput = document.getElementById('emp-book-balance');
+      const diffValEl = document.getElementById('emp-diff-value');
+      const diffLblEl = document.getElementById('emp-diff-label');
+      const diffCardEl = document.getElementById('emp-diff-card');
+
+      if (bookInput && diffValEl && diffLblEl && diffCardEl) {
+        const rawBookVal = bookInput.value.trim();
+        if (rawBookVal === '') {
+          diffValEl.innerText = '₹0.00';
+          diffValEl.className = 'mono text-xl font-black text-slate-400';
+          diffLblEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-slate-500"></span> Enter Enteportal balance';
+          diffCardEl.className = 'bg-slate-950/80 border border-slate-800 rounded-xl p-3 transition-colors';
+        } else {
+          const bookVal = parseFloat(rawBookVal) || 0;
+          const diff = totalAmount - bookVal;
+
+          if (Math.abs(diff) < 0.01) {
+            diffValEl.innerText = '₹0.00';
+            diffValEl.className = 'mono text-xl font-black text-emerald-400';
+            diffLblEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400"></span> Exactly Balanced (Matched)';
+            diffCardEl.className = 'bg-slate-950/80 border border-emerald-500/40 rounded-xl p-3 transition-colors shadow-lg shadow-emerald-500/5';
+          } else if (diff > 0) {
+            diffValEl.innerText = `+${formatINR(diff)}`;
+            diffValEl.className = 'mono text-xl font-black text-teal-300';
+            diffLblEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-teal-400"></span> Surplus / Cash Excess (+₹)';
+            diffCardEl.className = 'bg-slate-950/80 border border-teal-500/40 rounded-xl p-3 transition-colors shadow-lg shadow-teal-500/5';
+          } else {
+            diffValEl.innerText = `-${formatINR(Math.abs(diff))}`;
+            diffValEl.className = 'mono text-xl font-black text-rose-400';
+            diffLblEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-rose-400 animate-pulse"></span> Deficit / Cash Shortage (-₹)';
+            diffCardEl.className = 'bg-slate-950/80 border border-rose-500/40 rounded-xl p-3 transition-colors shadow-lg shadow-rose-500/5';
+          }
+        }
+      }
+    }
+    window.recalculateEmployee = recalculateEmployee;
+
+    async function saveAndSyncCloud() {
+      if (!window.currentUser || window.currentUser.role !== 'employee') return;
+
+      const existingData = (window.portalCashData && window.portalCashData[window.currentUser.username]) || {};
+      const isResubmission = !!existingData.lastUpdated;
+
+      const updatedCounts = {};
+      let submitTotal = 0;
+      let submitNotes = 0;
+      let submitCoins = 0;
+
+      window.DENOMINATIONS.forEach(d => {
+        const input = document.getElementById(`qty-${d.val}`);
+        const qty = input ? (parseInt(input.value) || 0) : 0;
+        updatedCounts[d.val] = qty;
+        submitTotal += (qty * d.val);
+        if (d.type === 'note') submitNotes += qty;
+        else submitCoins += qty;
+      });
+
+      const bookInput = document.getElementById('emp-book-balance');
+      const bookBalanceVal = (bookInput && bookInput.value.trim() !== '') ? parseFloat(bookInput.value.trim()) : 0;
+      const differenceVal = submitTotal - bookBalanceVal;
+      updatedCounts.bookBalance = bookBalanceVal;
+
+      const commentInput = document.getElementById('emp-reconciliation-comment');
+      const commentVal = commentInput ? commentInput.value.trim() : '';
+      updatedCounts.comment = commentVal;
+
+      const savedStamp = getCurrentDateTimeStamp();
+      const nowEpoch = Date.now();
+      updatedCounts.lastUpdated = savedStamp;
+      updatedCounts.isRevised = isResubmission;
+      window.portalCashData[window.currentUser.username] = updatedCounts;
+
+      if (!Array.isArray(window.portalHistoryLogs)) window.portalHistoryLogs = [];
+      const users = window.portalUsers || {};
+      const staffName = (users[window.currentUser.username] && users[window.currentUser.username].name) || window.currentUser.name || 'Counter';
+
+      window.portalHistoryLogs.unshift({
+        id: 'hist_' + nowEpoch + '_' + Math.random().toString(36).substring(2, 6),
+        username: window.currentUser.username,
+        staffName: staffName,
+        timestampStr: savedStamp,
+        timestampEpoch: nowEpoch,
+        totalAmount: submitTotal,
+        bookBalance: bookBalanceVal,
+        difference: differenceVal,
+        comment: commentVal,
+        notesCount: submitNotes,
+        coinsCount: submitCoins,
+        isRevised: isResubmission,
+        denominations: { ...updatedCounts }
+      });
+
+      await pushToCloud();
+      showToast(isResubmission ? `Updated & resubmitted at: ${savedStamp}` : `Saved at: ${savedStamp}`);
+
+      openSubmitSuccessModal({
+        staffName: staffName,
+        timestamp: savedStamp,
+        totalAmount: submitTotal,
+        bookBalance: bookBalanceVal,
+        diff: differenceVal,
+        isRevised: isResubmission
+      });
+      renderEmployeeCalculator(false);
+    }
+    window.saveAndSyncCloud = saveAndSyncCloud;
+
+    function openSubmitSuccessModal(info) {
+      const modal = document.getElementById('submit-success-modal');
+      if (!modal) return;
+
+      const userEl = document.getElementById('modal-success-user');
+      const timeEl = document.getElementById('modal-success-time');
+      const amountEl = document.getElementById('modal-success-amount');
+      const reconcileEl = document.getElementById('modal-success-reconcile');
+      const badgeEl = document.getElementById('modal-success-badge');
+      const headingEl = document.getElementById('modal-success-heading');
+      const subtextEl = document.getElementById('modal-success-subtext');
+
+      if (userEl) userEl.innerText = info.staffName;
+      if (timeEl) timeEl.innerText = info.timestamp;
+      if (amountEl) amountEl.innerText = formatINR(info.totalAmount);
+
+      if (info.isRevised) {
+        if (badgeEl) {
+          badgeEl.innerText = "Revised & Resynchronized";
+          badgeEl.className = "text-[11px] font-bold uppercase tracking-wider text-amber-300 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20";
+        }
+        if (headingEl) headingEl.innerText = "Successfully Updated & Resubmitted!";
+        if (subtextEl) subtextEl.innerText = "Your corrected table cash and updated book balance have been re-saved.";
+      } else {
+        if (badgeEl) {
+          badgeEl.innerText = "Verified & Synchronized";
+          badgeEl.className = "text-[11px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20";
+        }
+        if (headingEl) headingEl.innerText = "Successfully Submitted!";
+        if (subtextEl) subtextEl.innerText = "Your counter table cash and accounts book balance have been securely recorded.";
+      }
+
+      if (reconcileEl) {
+        if (info.bookBalance === 0 && info.totalAmount === 0) {
+          reconcileEl.innerHTML = `<span class="text-slate-400">No Enteportal balance entered</span>`;
+        } else if (Math.abs(info.diff) < 0.01) {
+          reconcileEl.innerHTML = `<span class="text-emerald-400 font-bold">Exact Match (Balanced)</span>`;
+        } else if (info.diff > 0) {
+          reconcileEl.innerHTML = `<span class="text-teal-300 font-bold">+${formatINR(info.diff)} (Surplus)</span>`;
+        } else {
+          reconcileEl.innerHTML = `<span class="text-rose-400 font-bold">-${formatINR(Math.abs(info.diff))} (Shortage)</span>`;
+        }
+      }
+
+      modal.classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function closeSubmitSuccessModal() {
+      const modal = document.getElementById('submit-success-modal');
+      if (modal) modal.classList.add('hidden');
+    }
+    window.closeSubmitSuccessModal = closeSubmitSuccessModal;
+
+    async function clearEmpCounts() {
+      window.DENOMINATIONS.forEach(d => {
+        const input = document.getElementById(`qty-${d.val}`);
+        if (input) input.value = '';
+      });
+      const bookInput = document.getElementById('emp-book-balance');
+      if (bookInput) bookInput.value = '';
+      const commentInput = document.getElementById('emp-reconciliation-comment');
+      if (commentInput) commentInput.value = '';
+      recalculateEmployee();
+      await saveAndSyncCloud();
+      showToast("Cleared table cash, book balance & remarks");
+    }
+    window.clearEmpCounts = clearEmpCounts;
+
+    // Admin Dashboard Rendering
+    function renderAdminDashboard() {
+      const users = window.portalUsers || {};
+      const data = window.portalCashData || {};
+      const att = window.portalAttendance || {};
+      const grid = document.getElementById('admin-counters-grid');
+      if (!grid) return;
+      grid.innerHTML = '';
+
+      let grandTotal = 0;
+      let totalNotesAll = 0;
+      let totalCoinsAll = 0;
+      let onDutyCount = 0;
+
+      const employeeKeys = ['emp1', 'emp2', 'emp3', 'emp4'];
+
+      employeeKeys.forEach((key, index) => {
+        const empInfo = users[key] || { name: `Counter ${index + 1}` };
+        const counts = data[key] || {};
+        const empAtt = att[key] || { status: 'not_punched' };
+        
+        let empTotal = 0;
+        let empNotes = 0;
+        let empCoins = 0;
+        let breakdownRows = '';
+
+        window.DENOMINATIONS.forEach(d => {
+          const qty = counts[d.val] || 0;
+          const sub = qty * d.val;
+          empTotal += sub;
+          if (d.type === 'note') empNotes += qty;
+          else empCoins += qty;
+
+          if (qty > 0) {
+            breakdownRows += `
+              <div class="flex justify-between items-center text-xs py-1 border-b border-slate-800/40">
+                <span class="mono text-slate-300 font-semibold">${d.label} × ${qty}</span>
+                <span class="mono text-slate-200">₹${sub.toLocaleString('en-IN')}</span>
+              </div>
+            `;
+          }
+        });
+
+        grandTotal += empTotal;
+        totalNotesAll += empNotes;
+        totalCoinsAll += empCoins;
+        if (empAtt.status === 'on_duty') onDutyCount++;
+
+        const bookBal = Number(counts.bookBalance) || 0;
+        const diff = empTotal - bookBal;
+        let reconcileStatusHtml = '';
+
+        if (counts.lastUpdated) {
+          if (Math.abs(diff) < 0.01) {
+            reconcileStatusHtml = `<span class="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">Matched Books</span>`;
+          } else if (diff > 0) {
+            reconcileStatusHtml = `<span class="text-[10px] font-bold text-teal-300 bg-teal-500/10 px-2 py-0.5 rounded border border-teal-500/20">+${formatINR(diff)} Excess</span>`;
+          } else {
+            reconcileStatusHtml = `<span class="text-[10px] font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">-${formatINR(Math.abs(diff))} Short</span>`;
+          }
+        }
+
+        let attStatusPill = '';
+        if (empAtt.status === 'on_duty') {
+          attStatusPill = `<span class="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> On Duty</span>`;
+        } else if (empAtt.status === 'completed') {
+          attStatusPill = `<span class="text-[10px] font-bold text-teal-300 bg-teal-500/10 border border-teal-500/20 px-2 py-0.5 rounded-full">Shift Ended</span>`;
+        } else {
+          attStatusPill = `<span class="text-[10px] font-medium text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">Not Punched</span>`;
+        }
+
+        const card = document.createElement('div');
+        card.className = "bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between";
+        card.innerHTML = `
+          <div>
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 font-bold flex items-center justify-center text-xs border border-emerald-500/20">
+                  C${index + 1}
+                </div>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <h4 class="text-sm font-bold text-white">${empInfo.name}</h4>
+                    ${attStatusPill}
+                  </div>
+                  <p class="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                    <i data-lucide="clock" class="w-3.5 h-3.5 text-emerald-400"></i>
+                    <span class="text-slate-300 font-mono text-[10.5px]">${counts.lastUpdated ? 'Saved: ' + counts.lastUpdated : 'Not submitted yet'}</span>
+                  </p>
+                </div>
+              </div>
+              <div class="text-right">
+                <span class="mono text-base font-bold text-emerald-400 block">${formatINR(empTotal)}</span>
+                ${reconcileStatusHtml}
+              </div>
+            </div>
+
+            <div class="my-2.5 p-2 bg-slate-950/70 border border-slate-800/80 rounded-xl text-xs flex items-center justify-between gap-2">
+              <span class="text-slate-400 text-[11px]">Enteportal: <strong class="text-teal-300 font-mono">${formatINR(bookBal)}</strong></span>
+              <span class="text-slate-400 text-[11px]">Diff: <strong class="${diff < 0 ? 'text-rose-400' : (diff > 0 ? 'text-teal-300' : 'text-emerald-400')} font-mono">${diff >= 0 ? '+' : ''}${formatINR(diff)}</strong></span>
+            </div>
+
+            ${counts.comment ? `
+              <div class="mb-2.5 p-2 bg-slate-950 border border-slate-800/80 rounded-xl text-xs flex items-start gap-2">
+                <i data-lucide="message-square" class="w-3.5 h-3.5 text-teal-400 shrink-0 mt-0.5"></i>
+                <div>
+                  <span class="text-[10px] font-bold text-teal-300 uppercase block tracking-wider">Remarks</span>
+                  <p class="text-slate-300 text-xs italic">"${counts.comment}"</p>
+                </div>
+              </div>
+            ` : ''}
+
+            <div class="mt-2 space-y-1 max-h-36 overflow-y-auto pr-1">
+              ${breakdownRows || '<p class="text-xs text-slate-400 italic py-2">No physical cash tallied yet</p>'}
+            </div>
+          </div>
+
+          <div class="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+            <span>Notes: <strong class="text-amber-300 font-mono">${empNotes}</strong></span>
+            <span>Coins: <strong class="text-sky-300 font-mono">${empCoins}</strong></span>
+            <span>Total Pcs: <strong class="text-slate-200 font-mono">${empNotes + empCoins}</strong></span>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+
+      // Update Summary Cards
+      const grandTotalEl = document.getElementById('admin-grand-total');
+      if (grandTotalEl) grandTotalEl.innerText = formatINR(grandTotal);
+      
+      const totalNotesEl = document.getElementById('admin-total-notes');
+      if (totalNotesEl) totalNotesEl.innerText = totalNotesAll;
+
+      const totalCoinsEl = document.getElementById('admin-total-coins');
+      if (totalCoinsEl) totalCoinsEl.innerText = totalCoinsAll;
+
+      const staffCountEl = document.getElementById('admin-active-staff');
+      if (staffCountEl) staffCountEl.innerText = `${onDutyCount} / 4 Active`;
+
+      // Render Visual Graphs
+      renderMonthlyCollectionAnalytics();
+      renderStaffAttendanceGraphs();
+
+      if (window.lucide) lucide.createIcons();
+    }
+    window.renderAdminDashboard = renderAdminDashboard;
+
+    // Render Staff Attendance & Timeline Graphs
+    function renderStaffAttendanceGraphs() {
+      const users = window.portalUsers || {};
+      const attHistory = window.portalAttendanceHistory || [];
+      const currentAtt = window.portalAttendance || {};
+      const employeeKeys = ['emp1', 'emp2', 'emp3', 'emp4'];
+
+      const punchInLogs = attHistory
+        .filter(l => l.type === 'PUNCH_IN' && l.timestampEpoch)
+        .sort((a, b) => (a.timestampEpoch || 0) - (b.timestampEpoch || 0));
+
+      let onDutyCount = 0;
+      let completedCount = 0;
+      employeeKeys.forEach(k => {
+        const item = currentAtt[k];
+        if (item && item.status === 'on_duty') onDutyCount++;
+        if (item && item.status === 'completed') completedCount++;
+      });
+
+      const kpiActiveEl = document.getElementById('att-kpi-active');
+      if (kpiActiveEl) kpiActiveEl.innerText = `${onDutyCount} Staff`;
+
+      const kpiCompletedEl = document.getElementById('att-kpi-completed');
+      if (kpiCompletedEl) kpiCompletedEl.innerText = `${completedCount} Staff`;
+
+      const totalBadge = document.getElementById('attendance-total-shifts-badge');
+      if (totalBadge) totalBadge.innerText = `${punchInLogs.length} Shifts Recorded`;
+
+      let totalDecimalHours = 0;
+      let earliestDecimal = 24;
+
+      punchInLogs.forEach(entry => {
+        const d = new Date(entry.timestampEpoch);
+        const dec = parseTimeToDecimalHours(d);
+        if (dec !== null) {
+          totalDecimalHours += dec;
+          if (dec < earliestDecimal) earliestDecimal = dec;
+        }
+      });
+
+      const avgDecimal = punchInLogs.length > 0 ? (totalDecimalHours / punchInLogs.length) : null;
+      const kpiAvgEl = document.getElementById('att-kpi-avg-time');
+      if (kpiAvgEl) kpiAvgEl.innerText = formatDecimalHoursToString(avgDecimal);
+
+      const kpiEarliestEl = document.getElementById('att-kpi-earliest');
+      if (kpiEarliestEl) {
+        kpiEarliestEl.innerText = earliestDecimal < 24 ? formatDecimalHoursToString(earliestDecimal) : "--:-- --";
+      }
+
+      // Populate Live Activity Stream
+      const streamContainer = document.getElementById('attendance-recent-stream');
+      if (streamContainer) {
+        if (attHistory.length === 0) {
+          streamContainer.innerHTML = '<p class="text-slate-500 italic py-2 text-center">No punch-in/out timestamps logged yet</p>';
+        } else {
+          streamContainer.innerHTML = attHistory.slice(0, 10).map(item => {
+            const isPunchIn = item.type === 'PUNCH_IN';
+            return `
+              <div class="flex items-center justify-between py-2">
+                <div class="flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full ${isPunchIn ? 'bg-indigo-400' : 'bg-teal-400'}"></span>
+                  <span class="font-semibold text-slate-200">${item.staffName || item.username}</span>
+                  <span class="text-[10px] uppercase font-bold px-1.5 py-0.2 rounded ${isPunchIn ? 'bg-indigo-500/20 text-indigo-300' : 'bg-teal-500/20 text-teal-300'}">
+                    ${isPunchIn ? 'Punched In' : 'Punched Out'}
+                  </span>
+                </div>
+                <span class="text-slate-400 font-mono text-[11px]">${item.timestampStr || ''}</span>
+              </div>
+            `;
+          }).join('');
+        }
+      }
+
+      // Group punch-ins by date for timeline chart
+      const staffColors = {
+        emp1: { border: '#10b981', bg: 'rgba(16, 185, 129, 0.2)' },
+        emp2: { border: '#06b6d4', bg: 'rgba(6, 182, 212, 0.2)' },
+        emp3: { border: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.2)' },
+        emp4: { border: '#f59e0b', bg: 'rgba(245, 158, 11, 0.2)' }
+      };
+
+      const dateMap = {};
+      punchInLogs.forEach(entry => {
+        const d = new Date(entry.timestampEpoch);
+        const dayLabel = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+        dateMap[dayLabel] = true;
+      });
+      const timelineLabels = Object.keys(dateMap);
+      if (timelineLabels.length === 0) timelineLabels.push('Today');
+
+      const datasetsTimeline = employeeKeys.map(k => {
+        const empName = (users[k] && users[k].name) || `Counter ${k.replace('emp','')}`;
+        const color = staffColors[k] || { border: '#38bdf8', bg: 'rgba(56, 189, 248, 0.2)' };
+
+        const dataPoints = timelineLabels.map(label => {
+          const matching = punchInLogs.filter(p => {
+            const d = new Date(p.timestampEpoch);
+            const dayLabel = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+            return p.username === k && dayLabel === label;
+          });
+          if (matching.length === 0) return null;
+          const avgDec = matching.reduce((acc, curr) => {
+            return acc + (parseTimeToDecimalHours(new Date(curr.timestampEpoch)) || 0);
+          }, 0) / matching.length;
+          return Number(avgDec.toFixed(2));
+        });
+
+        return {
+          label: empName,
+          data: dataPoints,
+          borderColor: color.border,
+          backgroundColor: color.bg,
+          borderWidth: 2,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          spanGaps: true,
+          tension: 0.2
+        };
+      });
+
+      const timelineCanvas = document.getElementById('staffPunchInTimelineChart');
+      if (timelineCanvas && typeof Chart !== 'undefined') {
+        if (window.chartInstancePunchTimeline) window.chartInstancePunchTimeline.destroy();
+
+        window.chartInstancePunchTimeline = new Chart(timelineCanvas.getContext('2d'), {
+          type: 'line',
+          data: { labels: timelineLabels, datasets: datasetsTimeline },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'top',
+                labels: { color: '#cbd5e1', boxWidth: 10, font: { size: 10.5, family: 'Inter' } }
+              },
+              tooltip: {
+                backgroundColor: '#0f172a',
+                callbacks: {
+                  label: function(context) {
+                    return ` ${context.dataset.label}: ${formatDecimalHoursToString(context.raw)}`;
+                  }
+                }
+              }
+            },
+            scales: {
+              x: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+              y: {
+                min: 6,
+                max: 22,
+                grid: { color: '#1e293b' },
+                ticks: {
+                  stepSize: 2,
+                  color: '#94a3b8',
+                  font: { size: 10, family: 'JetBrains Mono' },
+                  callback: val => formatDecimalHoursToString(val)
+                }
+              }
+            }
+          }
+        });
+      }
+
+      const freqCanvas = document.getElementById('staffAttendanceFrequencyChart');
+      if (freqCanvas && typeof Chart !== 'undefined') {
+        if (window.chartInstancePunchFreq) window.chartInstancePunchFreq.destroy();
+
+        const freqLabels = employeeKeys.map(k => (users[k] && users[k].name) || `Counter ${k.replace('emp','')}`);
+        const freqData = employeeKeys.map(k => punchInLogs.filter(p => p.username === k).length);
+
+        window.chartInstancePunchFreq = new Chart(freqCanvas.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: freqLabels,
+            datasets: [{
+              data: freqData,
+              backgroundColor: ['#10b981cc', '#06b6d4cc', '#8b5cf6cc', '#f59e0bcc'],
+              borderColor: ['#10b981', '#06b6d4', '#8b5cf6', '#f59e0b'],
+              borderWidth: 1.5,
+              borderRadius: 6
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+              y: {
+                beginAtZero: true,
+                grid: { color: '#1e293b' },
+                ticks: { stepSize: 1, color: '#94a3b8', font: { size: 10, family: 'JetBrains Mono' } }
+              }
+            }
+          }
+        });
+      }
+    }
+    window.renderStaffAttendanceGraphs = renderStaffAttendanceGraphs;
+
+    // Render Cash Collection Analytics
+    function renderMonthlyCollectionAnalytics() {
+      const users = window.portalUsers || {};
+      const rawLogs = window.portalHistoryLogs || [];
+      const employeeKeys = ['emp1', 'emp2', 'emp3', 'emp4'];
+
+      const employeeStats = {};
+      employeeKeys.forEach(key => {
+        employeeStats[key] = {
+          key: key,
+          name: (users[key] && users[key].name) || `Counter ${key.replace('emp', '')}`,
+          totalCash: 0,
+          totalBook: 0,
+          submissionCount: 0
+        };
+      });
+
+      rawLogs.forEach(entry => {
+        if (employeeStats[entry.username]) {
+          employeeStats[entry.username].totalCash += (Number(entry.totalAmount) || 0);
+          employeeStats[entry.username].totalBook += (Number(entry.bookBalance) || 0);
+          employeeStats[entry.username].submissionCount += 1;
+        }
+      });
+
+      let grandMonthTotal = Object.values(employeeStats).reduce((sum, item) => sum + item.totalCash, 0);
+
+      // Fallback: If no history exists yet, incorporate active table balances
+      if (grandMonthTotal === 0 && window.portalCashData) {
+        employeeKeys.forEach(key => {
+          const counts = window.portalCashData[key] || {};
+          let currentTableSum = 0;
+          window.DENOMINATIONS.forEach(d => {
+            currentTableSum += (counts[d.val] || 0) * d.val;
+          });
+          employeeStats[key].totalCash = currentTableSum;
+          employeeStats[key].totalBook = Number(counts.bookBalance) || 0;
+          if (currentTableSum > 0 || (counts.bookBalance && Number(counts.bookBalance) > 0)) {
+            employeeStats[key].submissionCount = 1;
+          }
+        });
+        grandMonthTotal = Object.values(employeeStats).reduce((sum, item) => sum + item.totalCash, 0);
+      }
+
+      const periodTotalEl = document.getElementById('analytics-total-period');
+      if (periodTotalEl) periodTotalEl.innerText = `Total Store Cash: ${formatINR(grandMonthTotal)}`;
+
+      const storeMonthlyGrandEl = document.getElementById('monthly-store-grand-total');
+      if (storeMonthlyGrandEl) storeMonthlyGrandEl.innerText = formatINR(grandMonthTotal);
+
+      const totalSubsEl = document.getElementById('monthly-total-submissions');
+      if (totalSubsEl) {
+        const totalSubs = Object.values(employeeStats).reduce((acc, curr) => acc + curr.submissionCount, 0);
+        totalSubsEl.innerText = `${totalSubs} entries`;
+      }
+
+      const avgCounterEl = document.getElementById('monthly-avg-counter');
+      if (avgCounterEl) {
+        const activeCount = Object.values(employeeStats).filter(e => e.totalCash > 0).length || 4;
+        avgCounterEl.innerText = formatINR(grandMonthTotal / activeCount);
+      }
+
+      const rankedList = Object.values(employeeStats).sort((a, b) => b.totalCash - a.totalCash);
+
+      const topPerformerEl = document.getElementById('monthly-top-performer');
+      if (topPerformerEl) {
+        topPerformerEl.innerText = rankedList[0] && rankedList[0].totalCash > 0 ? rankedList[0].name : 'Pending';
+      }
+
+      // Leaderboard Cards
+      const leaderboardCardsEl = document.getElementById('analytics-leaderboard-cards');
+      if (leaderboardCardsEl) {
+        leaderboardCardsEl.innerHTML = rankedList.map((emp, idx) => {
+          const isWinner = idx === 0 && emp.totalCash > 0;
+          const percentage = grandMonthTotal > 0 ? ((emp.totalCash / grandMonthTotal) * 100).toFixed(1) : 0;
+          
+          let rankBadge = '';
+          if (idx === 0) rankBadge = '<span class="px-2 py-0.5 text-[10px] font-extrabold rounded-md bg-amber-400 text-slate-950 flex items-center gap-1 shadow"><i data-lucide="crown" class="w-3 h-3"></i> #1 TOP</span>';
+          else if (idx === 1) rankBadge = '<span class="px-2 py-0.5 text-[10px] font-bold rounded-md bg-slate-300 text-slate-900">#2 Rank</span>';
+          else if (idx === 2) rankBadge = '<span class="px-2 py-0.5 text-[10px] font-bold rounded-md bg-amber-700 text-amber-100">#3 Rank</span>';
+          else rankBadge = '<span class="px-2 py-0.5 text-[10px] font-medium rounded-md bg-slate-800 text-slate-400">#4 Rank</span>';
+
+          const cardBorder = isWinner 
+            ? 'border-amber-400/50 bg-gradient-to-b from-amber-500/10 to-slate-950/80 shadow-lg ring-1 ring-amber-400/30' 
+            : 'border-slate-800 bg-slate-950/60';
+
+          return `
+            <div class="border rounded-xl p-4 flex flex-col justify-between transition hover:border-slate-700 ${cardBorder}">
+              <div>
+                <div class="flex items-center justify-between pb-2 border-b border-slate-800/60">
+                  <div class="truncate pr-1">
+                    <span class="text-xs font-bold text-white truncate block">${emp.name}</span>
+                    <span class="text-[10px] text-slate-400 font-mono">${emp.submissionCount} submission${emp.submissionCount === 1 ? '' : 's'}</span>
+                  </div>
+                  ${rankBadge}
+                </div>
+                <div class="mt-3">
+                  <span class="text-[10px] uppercase font-semibold text-slate-400 block tracking-wider">Total Cash Collected</span>
+                  <div class="mono text-xl font-black text-emerald-400">${formatINR(emp.totalCash)}</div>
+                  <div class="flex items-center justify-between text-[11px] text-slate-400 mt-1">
+                    <span>Store Share</span>
+                    <span class="font-bold font-mono text-slate-200">${percentage}%</span>
+                  </div>
+                  <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden mt-1.5">
+                    <div class="${isWinner ? 'bg-amber-400' : 'bg-emerald-500'} h-full rounded-full transition-all duration-500" style="width: ${percentage}%"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      const chartLabels = rankedList.map(r => r.name);
+      const chartData = rankedList.map(r => r.totalCash);
+
+      // 1. Bar Chart
+      const barCanvas = document.getElementById('monthlyCollectionBarChart');
+      if (barCanvas && typeof Chart !== 'undefined') {
+        if (window.chartInstanceBar) window.chartInstanceBar.destroy();
+
+        window.chartInstanceBar = new Chart(barCanvas.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: chartLabels,
+            datasets: [{
+              data: chartData,
+              backgroundColor: ['#10b981cc', '#06b6d4cc', '#8b5cf6cc', '#f59e0bcc'],
+              borderColor: ['#10b981', '#06b6d4', '#8b5cf6', '#f59e0b'],
+              borderWidth: 1.5,
+              borderRadius: 8,
+              maxBarThickness: 48
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: ctx => ` Collected: ₹${Number(ctx.raw || 0).toLocaleString('en-IN')}`
+                }
+              }
+            },
+            scales: {
+              x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 11 } } },
+              y: {
+                grid: { color: '#1e293b' },
+                ticks: {
+                  color: '#94a3b8',
+                  font: { size: 10, family: 'JetBrains Mono' },
+                  callback: val => '₹' + Number(val).toLocaleString('en-IN')
+                }
+              }
+            }
+          }
+        });
+      }
+
+      // 2. Pie Chart
+      const pieCanvas = document.getElementById('monthlyCollectionPieChart');
+      if (pieCanvas && typeof Chart !== 'undefined') {
+        if (window.chartInstancePie) window.chartInstancePie.destroy();
+
+        window.chartInstancePie = new Chart(pieCanvas.getContext('2d'), {
+          type: 'doughnut',
+          data: {
+            labels: chartLabels,
+            datasets: [{
+              data: chartData,
+              backgroundColor: ['#10b981', '#06b6d4', '#8b5cf6', '#f59e0b'],
+              borderColor: '#020617',
+              borderWidth: 3,
+              hoverOffset: 6
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '68%',
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: { color: '#cbd5e1', boxWidth: 12, padding: 12, font: { size: 11 } }
+              },
+              tooltip: {
+                callbacks: {
+                  label: ctx => {
+                    const value = Number(ctx.raw || 0);
+                    const pct = grandMonthTotal > 0 ? ((value / grandMonthTotal) * 100).toFixed(1) : 0;
+                    return ` ₹${value.toLocaleString('en-IN')} (${pct}%)`;
+                  }
+                }
+              }
+            }
+          }
+        });
+      }
+
+      // 3. Variance Chart
+      const varCanvas = document.getElementById('monthlyVarianceChart');
+      if (varCanvas && typeof Chart !== 'undefined') {
+        if (window.chartInstanceVariance) window.chartInstanceVariance.destroy();
+
+        const employeeList = Object.values(employeeStats);
+        const varLabels = employeeList.map(e => e.name);
+        const physicalData = employeeList.map(e => e.totalCash);
+        const bookData = employeeList.map(e => e.totalBook);
+        const diffData = employeeList.map(e => e.totalCash - e.totalBook);
+
+        const netVariance = employeeList.reduce((acc, curr) => acc + (curr.totalCash - curr.totalBook), 0);
+        const netVarEl = document.getElementById('variance-net-total');
+        if (netVarEl) {
+          if (Math.abs(netVariance) < 0.01) {
+            netVarEl.innerText = '₹0.00 (Balanced)';
+            netVarEl.className = 'font-mono font-bold text-emerald-400';
+          } else if (netVariance > 0) {
+            netVarEl.innerText = `+${formatINR(netVariance)} (Net Surplus)`;
+            netVarEl.className = 'font-mono font-bold text-teal-300';
+          } else {
+            netVarEl.innerText = `-${formatINR(Math.abs(netVariance))} (Net Shortage)`;
+            netVarEl.className = 'font-mono font-bold text-rose-400';
+          }
+        }
+
+        const varCardsEl = document.getElementById('variance-summary-cards');
+        if (varCardsEl) {
+          varCardsEl.innerHTML = employeeList.map(emp => {
+            const diff = emp.totalCash - emp.totalBook;
+            let statusBadge = '';
+            let statusBorder = 'border-slate-800';
+
+            if (emp.totalBook === 0 && emp.totalCash === 0) {
+              statusBadge = '<span class="text-[10px] text-slate-500 font-mono">No entries</span>';
+            } else if (Math.abs(diff) < 0.01) {
+              statusBadge = '<span class="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">Balanced</span>';
+              statusBorder = 'border-emerald-500/30';
+            } else if (diff > 0) {
+              statusBadge = `<span class="text-[10px] font-bold text-teal-300 bg-teal-500/10 px-2 py-0.5 rounded border border-teal-500/30">+${formatINR(diff)}</span>`;
+              statusBorder = 'border-teal-500/30';
+            } else {
+              statusBadge = `<span class="text-[10px] font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/30">-${formatINR(Math.abs(diff))}</span>`;
+              statusBorder = 'border-rose-500/40';
+            }
+
+            return `
+              <div class="p-2.5 bg-slate-900/90 border rounded-xl flex items-center justify-between text-xs ${statusBorder}">
+                <div class="truncate pr-2">
+                  <span class="font-bold text-white block truncate">${emp.name}</span>
+                  <div class="text-[10.5px] text-slate-400 flex items-center gap-2 mt-0.5 font-mono">
+                    <span>Cash: <strong class="text-slate-200">₹${emp.totalCash.toLocaleString('en-IN')}</strong></span>
+                    <span>•</span>
+                    <span>Book: <strong class="text-teal-300">₹${emp.totalBook.toLocaleString('en-IN')}</strong></span>
+                  </div>
+                </div>
+                <div class="text-right shrink-0">
+                  ${statusBadge}
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+
+        window.chartInstanceVariance = new Chart(varCanvas.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: varLabels,
+            datasets: [
+              {
+                label: 'Physical Cash (₹)',
+                data: physicalData,
+                backgroundColor: 'rgba(16, 185, 129, 0.75)',
+                borderColor: '#10b981',
+                borderWidth: 1.5,
+                borderRadius: 6
+              },
+              {
+                label: 'Books Balance (₹)',
+                data: bookData,
+                backgroundColor: 'rgba(20, 184, 166, 0.45)',
+                borderColor: '#14b8a6',
+                borderWidth: 1.5,
+                borderRadius: 6
+              },
+              {
+                type: 'line',
+                label: 'Net Variance (+/-)',
+                data: diffData,
+                borderColor: '#f43f5e',
+                backgroundColor: '#f43f5e',
+                borderWidth: 2,
+                pointRadius: 4,
+                tension: 0.3
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'top', labels: { color: '#cbd5e1', boxWidth: 12, font: { size: 10.5 } } }
+            },
+            scales: {
+              x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 11 } } },
+              y: {
+                grid: { color: '#1e293b' },
+                ticks: {
+                  color: '#94a3b8',
+                  font: { size: 10, family: 'JetBrains Mono' },
+                  callback: val => '₹' + Number(val).toLocaleString('en-IN')
+                }
+              }
+            }
+          }
+        });
+      }
+    }
+    window.renderMonthlyCollectionAnalytics = renderMonthlyCollectionAnalytics;
+
+    // History Modal & Filter
+    function openHistoryModal() {
+      const modal = document.getElementById('history-modal');
+      if (modal) modal.classList.remove('hidden');
+      renderHistoryList();
+      if (window.lucide) lucide.createIcons();
+    }
+    window.openHistoryModal = openHistoryModal;
+
+    function closeHistoryModal() {
+      const modal = document.getElementById('history-modal');
+      if (modal) modal.classList.add('hidden');
+    }
+    window.closeHistoryModal = closeHistoryModal;
+
+    function renderHistoryList() {
+      const container = document.getElementById('history-list');
+      const countEl = document.getElementById('history-entry-count');
+      const filterUserEl = document.getElementById('history-filter-user');
+      const filterUser = filterUserEl ? filterUserEl.value : 'all';
+      if (!container) return;
+
+      let logs = [...(window.portalHistoryLogs || [])];
+      logs.sort((a, b) => (b.timestampEpoch || 0) - (a.timestampEpoch || 0));
+
+      if (filterUser !== 'all') {
+        logs = logs.filter(item => item.username === filterUser);
+      }
+
+      if (countEl) countEl.innerText = `${logs.length} submission${logs.length === 1 ? '' : 's'}`;
+
+      if (logs.length === 0) {
+        container.innerHTML = `
+          <div class="p-8 text-center bg-slate-950/40 border border-slate-800 rounded-xl">
+            <i data-lucide="inbox" class="w-8 h-8 text-slate-600 mx-auto mb-2"></i>
+            <p class="text-sm text-slate-400 font-medium">No cash update submissions recorded yet.</p>
+          </div>
+        `;
+        if (window.lucide) lucide.createIcons();
+        return;
+      }
+
+      container.innerHTML = logs.map(entry => {
+        const denomPills = window.DENOMINATIONS
+          .map(d => {
+            const count = (entry.denominations && entry.denominations[d.val]) || 0;
+            if (count <= 0) return '';
+            return `<span class="inline-flex items-center gap-1 bg-slate-950 border border-slate-800 px-2 py-0.5 rounded text-[11px] text-slate-300">
+              <strong class="text-white">${d.label}:</strong> ${count} pcs
+            </span>`;
+          })
+          .filter(Boolean)
+          .join('');
+
+        const bookBal = Number(entry.bookBalance) || 0;
+        const diff = (entry.difference !== undefined) ? Number(entry.difference) : (Number(entry.totalAmount) - bookBal);
+        
+        let diffBadge = '';
+        if (bookBal > 0 || Math.abs(diff) > 0) {
+          if (Math.abs(diff) < 0.01) {
+            diffBadge = `<span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">Balanced</span>`;
+          } else if (diff > 0) {
+            diffBadge = `<span class="px-2 py-0.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/30 text-[10px] font-bold">+${formatINR(diff)}</span>`;
+          } else {
+            diffBadge = `<span class="px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/30 text-[10px] font-bold">-${formatINR(Math.abs(diff))}</span>`;
+          }
+        }
+
+        return `
+          <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-4 hover:border-slate-700 transition">
+            <div class="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-800/60">
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[11px] font-bold">
+                  ${entry.staffName || entry.username}
+                </span>
+                ${entry.isRevised ? '<span class="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 text-[10px] font-bold">Resubmitted</span>' : ''}
+                <span class="text-xs text-slate-400 flex items-center gap-1">
+                  <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-500"></i> ${entry.timestampStr}
+                </span>
+              </div>
+              <div class="text-right flex items-center gap-2.5">
+                ${diffBadge}
+                <span class="mono text-base font-extrabold text-emerald-400">${formatINR(entry.totalAmount)}</span>
+              </div>
+            </div>
+
+            <div class="mt-2 text-xs flex flex-wrap items-center justify-between gap-2 text-slate-400 bg-slate-900/60 p-2 rounded-lg border border-slate-800/50">
+              <span>Books: <strong class="text-teal-300 font-mono">${formatINR(bookBal)}</strong></span>
+              <span>Physical: <strong class="text-emerald-300 font-mono">${formatINR(entry.totalAmount)}</strong></span>
+              <span>Diff: <strong class="${diff < 0 ? 'text-rose-400' : (diff > 0 ? 'text-teal-300' : 'text-emerald-400')} font-mono">${diff >= 0 ? '+' : ''}${formatINR(diff)}</strong></span>
+            </div>
+
+            ${entry.comment ? `
+              <div class="mt-2 text-xs bg-slate-900/80 border border-slate-800 rounded-lg p-2 flex items-start gap-2">
+                <i data-lucide="message-square" class="w-3.5 h-3.5 text-teal-400 shrink-0 mt-0.5"></i>
+                <span class="italic text-slate-300">"${entry.comment}"</span>
+              </div>
+            ` : ''}
+
+            <div class="mt-2.5 flex flex-wrap items-center gap-1.5">
+              ${denomPills || '<span class="text-xs text-slate-500 italic">No notes/coins tallied</span>'}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      if (window.lucide) lucide.createIcons();
+    }
+    window.renderHistoryList = renderHistoryList;
+
+    // Export CSV Utility
+    function exportHistoryCSV() {
+      const logs = window.portalHistoryLogs || [];
+      if (logs.length === 0) {
+        showToast("No history records to export");
+        return;
+      }
+
+      let csv = "Timestamp,Counter ID,Staff Name,Physical Cash (INR),Enteportal Balance (INR),Difference (INR),Total Notes,Total Coins,Remarks\n";
+      logs.forEach(entry => {
+        const cleanComment = (entry.comment || '').replace(/"/g, '""');
+        csv += `"${entry.timestampStr}","${entry.username}","${entry.staffName}",${entry.totalAmount || 0},${entry.bookBalance || 0},${entry.difference || 0},${entry.notesCount || 0},${entry.coinsCount || 0},"${cleanComment}"\n`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `table_cash_ledger_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      showToast("Ledger exported as CSV!");
+    }
+    window.exportHistoryCSV = exportHistoryCSV;
+
+    // Admin Settings Modal Handlers
+    function openEmployeeSettingsModal() {
+      const modal = document.getElementById('settings-modal');
+      const list = document.getElementById('employee-settings-list');
+      const users = window.portalUsers || {};
+
+      if (list) {
+        list.innerHTML = ['emp1', 'emp2', 'emp3', 'emp4'].map((key, i) => {
+          const u = users[key] || { name: `Counter ${i+1}`, password: '1234' };
+          return `
+            <div class="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+              <span class="text-xs font-bold text-emerald-400 uppercase tracking-wider">Counter ${i+1} (${key})</span>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-[11px] text-slate-400 mb-0.5">Staff Name</label>
+                  <input type="text" id="setting-name-${key}" value="${u.name || ''}" class="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-2.5 py-1.5 text-xs font-medium focus:ring-1 focus:ring-indigo-400 outline-none">
+                </div>
+                <div>
+                  <label class="block text-[11px] text-slate-400 mb-0.5">Password</label>
+                  <input type="text" id="setting-pass-${key}" value="${u.password || ''}" class="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-2.5 py-1.5 text-xs font-medium focus:ring-1 focus:ring-indigo-400 outline-none">
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      if (modal) modal.classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
+    }
+    window.openEmployeeSettingsModal = openEmployeeSettingsModal;
+
+    function closeEmployeeSettingsModal() {
+      const modal = document.getElementById('settings-modal');
+      if (modal) modal.classList.add('hidden');
+    }
+    window.closeEmployeeSettingsModal = closeEmployeeSettingsModal;
+
+    async function saveEmployeeSettings() {
+      ['emp1', 'emp2', 'emp3', 'emp4'].forEach(key => {
+        const nameVal = document.getElementById(`setting-name-${key}`).value.trim();
+        const passVal = document.getElementById(`setting-pass-${key}`).value.trim();
+        if (nameVal) window.portalUsers[key].name = nameVal;
+        if (passVal) window.portalUsers[key].password = passVal;
+      });
+
+      await pushToCloud();
+      populateLoginDropdown();
+      renderAdminDashboard();
+      closeEmployeeSettingsModal();
+      showToast("Employee profiles saved & synced!");
+    }
+    window.saveEmployeeSettings = saveEmployeeSettings;
+
+    // Change Admin Password Modal Handlers
+    function openChangeAdminPasswordModal() {
+      const modal = document.getElementById('admin-password-modal');
+      document.getElementById('admin-cur-password').value = '';
+      document.getElementById('admin-new-password').value = '';
+      document.getElementById('admin-confirm-password').value = '';
+      const errMsg = document.getElementById('admin-pwd-error-msg');
+      if (errMsg) errMsg.classList.add('hidden');
+      if (modal) modal.classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
+    }
+    window.openChangeAdminPasswordModal = openChangeAdminPasswordModal;
+
+    function closeChangeAdminPasswordModal() {
+      const modal = document.getElementById('admin-password-modal');
+      if (modal) modal.classList.add('hidden');
+    }
+    window.closeChangeAdminPasswordModal = closeChangeAdminPasswordModal;
+
+    async function handleAdminPasswordChange(e) {
+      e.preventDefault();
+      const users = window.portalUsers || {};
+      const curAdminPass = (users.admin && users.admin.password) ? users.admin.password : 'admin123';
+      
+      const enteredCur = document.getElementById('admin-cur-password').value;
+      const enteredNew = document.getElementById('admin-new-password').value.trim();
+      const enteredConfirm = document.getElementById('admin-confirm-password').value.trim();
+      const errElem = document.getElementById('admin-pwd-error-msg');
+
+      if (enteredCur !== curAdminPass) {
+        if (errElem) {
+          errElem.textContent = "Incorrect current admin password.";
+          errElem.classList.remove('hidden');
+        }
+        return;
+      }
+
+      if (enteredNew.length < 4) {
+        if (errElem) {
+          errElem.textContent = "New admin password must be at least 4 characters long.";
+          errElem.classList.remove('hidden');
+        }
+        return;
+      }
+
+      if (enteredNew !== enteredConfirm) {
+        if (errElem) {
+          errElem.textContent = "New passwords do not match.";
+          errElem.classList.remove('hidden');
+        }
+        return;
+      }
+
+      // Update password in runtime state & user session
+      if (!window.portalUsers.admin) {
+        window.portalUsers.admin = { ...DEFAULT_USERS.admin };
+      }
+      window.portalUsers.admin.password = enteredNew;
+      if (window.currentUser && window.currentUser.username === 'admin') {
+        window.currentUser.password = enteredNew;
+      }
+
+      await pushToCloud();
+      closeChangeAdminPasswordModal();
+      showToast("Admin password changed successfully!");
+    }
+    window.handleAdminPasswordChange = handleAdminPasswordChange;
+
+    // Employee Password Modal
+    function openChangePasswordModal() {
+      if (!window.currentUser) return;
+      document.getElementById('emp-pwd-subtitle').innerText = `Updating credentials for ${window.currentUser.name}`;
+      document.getElementById('emp-cur-password').value = '';
+      document.getElementById('emp-new-password').value = '';
+      document.getElementById('emp-confirm-password').value = '';
+      document.getElementById('emp-password-modal').classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
+    }
+    window.openChangePasswordModal = openChangePasswordModal;
+
+    function closeChangePasswordModal() {
+      const modal = document.getElementById('emp-password-modal');
+      if (modal) modal.classList.add('hidden');
+    }
+    window.closeChangePasswordModal = closeChangePasswordModal;
+
+    async function handleEmployeePasswordChange(e) {
+      e.preventDefault();
+      const users = window.portalUsers;
+      const curPass = document.getElementById('emp-cur-password').value;
+      const newPass = document.getElementById('emp-new-password').value;
+      const confirmPass = document.getElementById('emp-confirm-password').value;
+
+      if (curPass !== users[window.currentUser.username].password) {
+        showToast("Current password entered is incorrect");
+        return;
+      }
+      if (newPass !== confirmPass) {
+        showToast("New passwords do not match");
+        return;
+      }
+
+      users[window.currentUser.username].password = newPass;
+      window.currentUser.password = newPass;
+      await pushToCloud();
+
+      closeChangePasswordModal();
+      showToast("Password updated successfully!");
+    }
+    window.handleEmployeePasswordChange = handleEmployeePasswordChange;
+
+    async function resetAllEmployeeData() {
+      window.portalCashData = {
+        emp1: { 500:0, 200:0, 100:0, 50:0, 20:0, 10:0, 5:0, 2:0, 1:0, bookBalance: 0, comment: '', lastUpdated: null },
+        emp2: { 500:0, 200:0, 100:0, 50:0, 20:0, 10:0, 5:0, 2:0, 1:0, bookBalance: 0, comment: '', lastUpdated: null },
+        emp3: { 500:0, 200:0, 100:0, 50:0, 20:0, 10:0, 5:0, 2:0, 1:0, bookBalance: 0, comment: '', lastUpdated: null },
+        emp4: { 500:0, 200:0, 100:0, 50:0, 20:0, 10:0, 5:0, 2:0, 1:0, bookBalance: 0, comment: '', lastUpdated: null }
+      };
+      await pushToCloud();
+      renderAdminDashboard();
+      showToast("All daily counter balances reset!");
+    }
+    window.resetAllEmployeeData = resetAllEmployeeData;
+
+    function copyAdminSummary() {
+      const users = window.portalUsers;
+      const data = window.portalCashData;
+      const att = window.portalAttendance;
+      const dateStr = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+      const timeStr = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+      let text = `*TABLE CASH CONSOLIDATED SUMMARY*\n`;
+      text += `🏢 Portal ID: ${window.activePortalId}\n`;
+      text += `📅 Report Generated: ${dateStr} at ${timeStr}\n`;
+      text += `--------------------------------------\n`;
+
+      let storeGrandTotal = 0;
+      let storeGrandBook = 0;
+
+      ['emp1', 'emp2', 'emp3', 'emp4'].forEach((key, i) => {
+        const emp = users[key] || { name: `Counter ${i+1}` };
+        const counts = data[key] || {};
+        const attInfo = att[key] || {};
+        let empTotal = 0;
+
+        window.DENOMINATIONS.forEach(d => {
+          empTotal += ((counts[d.val] || 0) * d.val);
+        });
+
+        const bookBal = Number(counts.bookBalance) || 0;
+        const diff = empTotal - bookBal;
+        storeGrandTotal += empTotal;
+        storeGrandBook += bookBal;
+
+        text += `🔹 *${emp.name}:*\n`;
+        text += `   • Attendance: ${attInfo.status === 'on_duty' ? 'On Duty' : (attInfo.status === 'completed' ? 'Shift Ended' : 'Not Punched')}\n`;
+        text += `   • Physical Cash: ₹${empTotal.toLocaleString('en-IN')}\n`;
+        text += `   • Enteportal Balance: ₹${bookBal.toLocaleString('en-IN')}\n`;
+        text += `   • Difference: ${diff >= 0 ? '+' : ''}₹${diff.toLocaleString('en-IN')}\n`;
+        if (counts.comment) text += `   • Remarks: "${counts.comment}"\n`;
+        text += `\n`;
+      });
+
+      const grandDiff = storeGrandTotal - storeGrandBook;
+      text += `--------------------------------------\n`;
+      text += `💰 *TOTAL PHYSICAL CASH: ₹${storeGrandTotal.toLocaleString('en-IN')}*\n`;
+      text += `📖 *TOTAL ENTEPORTAL BALANCE: ₹${storeGrandBook.toLocaleString('en-IN')}*\n`;
+      text += `⚖️ *NET STORE VARIANCE: ${grandDiff >= 0 ? '+' : ''}₹${grandDiff.toLocaleString('en-IN')}*\n`;
+      text += `--------------------------------------\n`;
+
+      const dummy = document.createElement("textarea");
+      document.body.appendChild(dummy);
+      dummy.value = text;
+      dummy.select();
+      try {
+        document.execCommand("copy");
+        showToast("WhatsApp summary copied to clipboard!");
+      } catch (e) {
+        showToast("Failed to copy summary");
+      }
+      document.body.removeChild(dummy);
+    }
+    window.copyAdminSummary = copyAdminSummary;
+
+    // Portal Switcher Handlers
+    function promptChangePortalId() {
+      document.getElementById('custom-portal-input').value = window.activePortalId;
+      document.getElementById('portal-modal').classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
+    }
+    window.promptChangePortalId = promptChangePortalId;
+
+    function closePortalModal() {
+      document.getElementById('portal-modal').classList.add('hidden');
+    }
+    window.closePortalModal = closePortalModal;
+
+    function applyCustomPortalId() {
+      const val = document.getElementById('custom-portal-input').value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+      if (!val) {
+        showToast("Please enter a valid ID");
+        return;
+      }
+      window.activePortalId = val;
+      localStorage.setItem('active_portal_id', val);
+      closePortalModal();
+      loadLocalData();
+      updatePortalDisplays();
+      populateLoginDropdown();
+      showToast(`Connected to portal: ${val}`);
+    }
+    window.applyCustomPortalId = applyCustomPortalId;
+
+    function copyPortalLink() {
+      const fullUrl = `${window.location.origin}${window.location.pathname}?portal=${encodeURIComponent(window.activePortalId)}`;
+      const dummy = document.createElement("textarea");
+      document.body.appendChild(dummy);
+      dummy.value = fullUrl;
+      dummy.select();
+      try {
+        document.execCommand("copy");
+        showToast("Portal link copied! Send to staff.");
+      } catch (e) {
+        showToast("Failed to copy link");
+      }
+      document.body.removeChild(dummy);
+    }
+    window.copyPortalLink = copyPortalLink;
+
+    // App Initialization
+    window.addEventListener('DOMContentLoaded', () => {
+      loadLocalData();
+      updatePortalDisplays();
+      populateLoginDropdown();
+      if (window.lucide) lucide.createIcons();
+    });
+  </script>
+</body>
+</html>
