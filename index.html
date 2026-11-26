@@ -1,4 +1,832 @@
-<!-- Application Logic & State Handlers (Firebase Realtime Sync + Local Backup) -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Table Cash Counter Portal</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <!-- Chart.js for Visual Analytics & Timelines -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    input[type=number]::-webkit-inner-spin-button, 
+    input[type=number]::-webkit-outer-spin-button { 
+      -webkit-appearance: none; 
+      margin: 0; 
+    }
+    input[type=number] { -moz-appearance: textfield; }
+    @media print {
+      .no-print { display: none !important; }
+      body { background: #ffffff !important; color: #000000 !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen antialiased flex flex-col selection:bg-emerald-500 selection:text-slate-950">
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed top-5 right-5 z-50 transform transition-all duration-300 translate-y-[-150%] opacity-0 pointer-events-none flex items-center gap-3 bg-slate-900 border border-emerald-500/50 text-white px-5 py-3.5 rounded-xl shadow-2xl backdrop-blur-md">
+    <i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-400"></i>
+    <span id="toast-msg" class="text-sm font-medium">Notification</span>
+  </div>
+
+  <!-- App Header -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 font-black text-xl shadow-lg shadow-emerald-500/20">
+          ₹
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-bold text-white tracking-tight flex items-center gap-2">
+            Table Cash Portal
+            <span id="connection-badge" class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30 flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span> Connecting Cloud...
+            </span>
+          </h1>
+          <p class="text-xs text-slate-400 flex items-center gap-1.5">
+            Portal ID: <span id="current-portal-display" class="font-mono text-emerald-300 font-semibold">main-branch</span>
+            <button onclick="promptChangePortalId()" class="hover:text-white underline text-[11px] text-slate-500 ml-1">Change</button>
+          </p>
+        </div>
+      </div>
+
+      <div id="header-actions" class="hidden items-center gap-2.5">
+        <span id="logged-user-display" class="hidden sm:inline text-xs font-semibold text-slate-300 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700"></span>
+        <button onclick="handleLogout()" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded-lg transition-colors">
+          <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Logout
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main View Container -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full flex flex-col justify-center">
+
+    <!-- 1. LOGIN SCREEN -->
+    <div id="login-view" class="w-full max-w-md mx-auto">
+      
+      <!-- Portal Link Share Banner -->
+      <div class="mb-4 p-3.5 bg-slate-900 border border-slate-800 rounded-xl text-xs flex items-center justify-between gap-3">
+        <div class="truncate">
+          <span class="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Online Portal Link</span>
+          <span id="shareable-portal-url" class="font-mono text-emerald-400 text-xs truncate block">Loading link...</span>
+        </div>
+        <button onclick="copyPortalLink()" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 whitespace-nowrap">
+          <i data-lucide="share-2" class="w-3.5 h-3.5"></i> Share
+        </button>
+      </div>
+
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl">
+        <div class="text-center mb-6">
+          <div class="w-12 h-12 bg-emerald-500/10 text-emerald-400 rounded-xl flex items-center justify-center mx-auto mb-3 border border-emerald-500/20">
+            <i data-lucide="lock" class="w-6 h-6"></i>
+          </div>
+          <h2 class="text-xl font-bold text-white">Daily Counter Login</h2>
+          <p class="text-xs text-slate-400 mt-1">Select counter profile & enter password</p>
+        </div>
+
+        <form onsubmit="handleLogin(event)" class="space-y-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Select Account</label>
+            <select id="login-username" class="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-emerald-400 outline-none transition">
+              <!-- Populated dynamically -->
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Password</label>
+            <input 
+              type="password" 
+              id="login-password" 
+              placeholder="Enter password"
+              required
+              class="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-emerald-400 outline-none transition"
+            >
+          </div>
+
+          <button 
+            type="submit" 
+            class="w-full py-2.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-sm transition shadow-lg shadow-emerald-500/20 active:scale-[0.98]">
+            Sign In to Counter
+          </button>
+        </form>
+
+        <div class="mt-6 pt-5 border-t border-slate-800 text-center">
+          <p class="text-[11px] font-mono text-slate-400">
+            Default credentials: <span class="text-slate-200 font-bold">admin123</span> (Admin) & <span class="text-slate-200 font-bold">1234</span> (Employees)
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. EMPLOYEE CASH CALCULATOR VIEW -->
+    <div id="employee-view" class="hidden w-full max-w-4xl mx-auto space-y-6">
+      
+      <!-- Top Status Banner -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <span class="text-xs font-semibold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> Live Counter Register
+            <span id="emp-edit-badge" class="hidden ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">
+              <i data-lucide="pencil" class="w-3 h-3 inline mr-0.5"></i> Edit Mode Active
+            </span>
+          </span>
+          <h2 id="emp-counter-title" class="text-lg font-bold text-white">Employee 1 - Table Cash</h2>
+          <p class="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
+            <i data-lucide="clock" class="w-3.5 h-3.5 text-emerald-400"></i>
+            <span>Submitted At: <strong id="emp-last-timestamp" class="text-emerald-300 font-mono font-semibold">Not yet submitted</strong></span>
+            <span id="emp-resubmit-hint" class="hidden text-[11px] text-amber-400/90 font-medium ml-1.5">(You can edit any quantity and resubmit)</span>
+          </p>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <button onclick="openChangePasswordModal()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold rounded-xl transition flex items-center gap-1.5 shadow">
+            <i data-lucide="key-round" class="w-3.5 h-3.5 text-emerald-400"></i> Change Password
+          </button>
+          <div class="bg-slate-950 border border-slate-800 px-5 py-3 rounded-xl text-right">
+            <span class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold block">Physical Cash Count</span>
+            <span id="emp-top-total" class="mono text-2xl font-black text-emerald-400">₹0.00</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Employee Daily Attendance Marker Card -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl">
+        <div class="flex flex-wrap items-center justify-between gap-2 pb-3 mb-3 border-b border-slate-800">
+          <div class="flex items-center gap-2">
+            <span class="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              <i data-lucide="user-check" class="w-4 h-4"></i>
+            </span>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-200">Daily Shift Attendance Marker</h3>
+          </div>
+          <span id="emp-att-status-pill" class="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+            Not Punched In
+          </span>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
+          <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3">
+            <span class="text-[11px] text-slate-400 block font-medium">Punch In (Shift Start)</span>
+            <div id="emp-punch-in-time" class="mono text-sm font-bold text-white mt-0.5">--:-- --</div>
+          </div>
+          <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3">
+            <span class="text-[11px] text-slate-400 block font-medium">Punch Out (Shift End)</span>
+            <div id="emp-punch-out-time" class="mono text-sm font-bold text-white mt-0.5">--:-- --</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="btn-punch-in" onclick="handlePunchIn()" class="flex-1 py-2 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5 active:scale-95">
+              <i data-lucide="log-in" class="w-3.5 h-3.5"></i> Punch In
+            </button>
+            <button id="btn-punch-out" onclick="handlePunchOut()" class="flex-1 py-2 px-3 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 active:scale-95">
+              <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Punch Out
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Reconciliation with Books of Accounts Card -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl">
+        <div class="flex flex-wrap items-center justify-between gap-2 pb-3 mb-3 border-b border-slate-800">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+            <i data-lucide="book-open" class="w-4 h-4 text-teal-400"></i> Cash Book Reconciliation (Daily Accounts Balance)
+          </h3>
+          <span class="text-[11px] text-slate-400">Compare physical drawer cash with day book balance</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5 items-center">
+          <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3">
+            <label class="block text-xs font-semibold text-teal-300 mb-1 flex items-center gap-1">
+              <i data-lucide="receipt" class="w-3.5 h-3.5"></i> Enteportal Balance (₹)
+            </label>
+            <input 
+              type="number" 
+              id="emp-book-balance" 
+              placeholder="0.00" 
+              step="any"
+              min="0"
+              oninput="recalculateEmployee()"
+              class="mono w-full bg-slate-900 border border-slate-700 focus:border-teal-400 focus:ring-1 focus:ring-teal-400 rounded-lg py-2 px-3 text-base font-bold text-white placeholder-slate-600 outline-none transition"
+            >
+            <span class="text-[10px] text-slate-500 mt-1 block">From Enteportal software</span>
+          </div>
+
+          <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3">
+            <span class="text-xs font-semibold text-slate-400 block mb-1">Physical Cash in Hand</span>
+            <div id="emp-reconcile-physical" class="mono text-xl font-black text-emerald-400">₹0.00</div>
+            <span class="text-[10px] text-slate-500 mt-1 block">Total tallied notes and coins</span>
+          </div>
+
+          <div id="emp-diff-card" class="bg-slate-950/80 border border-slate-800 rounded-xl p-3">
+            <span class="text-xs font-semibold text-slate-400 block mb-1">Tally Difference Status</span>
+            <div id="emp-diff-value" class="mono text-xl font-black text-slate-300">₹0.00</div>
+            <span id="emp-diff-label" class="text-[11px] font-semibold text-slate-400 mt-1 flex items-center gap-1">
+              <span class="w-2 h-2 rounded-full bg-slate-500"></span> Enter Enteportal balance
+            </span>
+          </div>
+        </div>
+
+        <div class="mt-3.5 pt-3 border-t border-slate-800/80">
+          <label class="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
+            <span class="flex items-center gap-1.5">
+              <i data-lucide="message-square" class="w-3.5 h-3.5 text-teal-400"></i> Remarks
+            </span>
+            <span id="comment-hint" class="text-[10px] font-normal text-slate-400 italic">Optional</span>
+          </label>
+          <textarea 
+            id="emp-reconciliation-comment" 
+            rows="2"
+            placeholder="Add any remarks or notes here..."
+            class="w-full bg-slate-950 border border-slate-800 focus:border-teal-400 focus:ring-1 focus:ring-teal-400 rounded-xl p-2.5 text-xs text-white placeholder-slate-600 outline-none resize-none transition"
+          ></textarea>
+        </div>
+      </div>
+
+      <!-- Denomination Table -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+        <div class="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+            <i data-lucide="coins" class="w-4 h-4 text-emerald-400"></i> Cash Denomination Breakdown
+          </h3>
+          <button onclick="clearEmpCounts()" class="text-xs text-slate-400 hover:text-rose-400 transition flex items-center gap-1 font-semibold">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Clear All
+          </button>
+        </div>
+
+        <div class="p-2 sm:p-4 overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="text-[11px] uppercase text-slate-400 border-b border-slate-800">
+                <th class="py-2.5 px-3">Denomination</th>
+                <th class="py-2.5 px-3 text-center">Type</th>
+                <th class="py-2.5 px-3 text-center">Count / Qty</th>
+                <th class="py-2.5 px-3 text-right">Amount (₹)</th>
+              </tr>
+            </thead>
+            <tbody id="denom-rows" class="divide-y divide-slate-800/60 text-sm">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Employee Summary Footer -->
+        <div class="bg-slate-950/80 border-t border-slate-800 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4">
+          <div class="flex items-center gap-6 text-xs">
+            <div>
+              <span class="text-slate-400 block">Total Notes</span>
+              <span id="emp-total-notes" class="mono font-bold text-amber-300 text-sm">0 notes</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block">Total Coins</span>
+              <span id="emp-total-coins" class="mono font-bold text-sky-300 text-sm">0 coins</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block">Total Pieces</span>
+              <span id="emp-total-pieces" class="mono font-bold text-slate-200 text-sm">0 pcs</span>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <button id="emp-save-btn" onclick="saveAndSyncCloud()" class="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-sm transition shadow-lg shadow-emerald-500/20 flex items-center gap-2 active:scale-95">
+              <i id="emp-save-btn-icon" data-lucide="cloud-upload" class="w-4 h-4"></i> 
+              <span id="emp-save-btn-text">Save Table Cash & Enteportal Balance</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. ADMIN DASHBOARD VIEW -->
+    <div id="admin-view" class="hidden w-full max-w-6xl mx-auto space-y-6">
+      
+      <!-- Top Metrics Bar -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+          <div class="flex items-center justify-between text-slate-400 mb-2">
+            <span class="text-xs font-semibold uppercase tracking-wider">Total Store Cash</span>
+            <i data-lucide="vault" class="w-5 h-5 text-emerald-400"></i>
+          </div>
+          <span id="admin-grand-total" class="mono text-2xl sm:text-3xl font-black text-emerald-400">₹0.00</span>
+          <p class="text-[11px] text-slate-400 mt-1">Live sum of all 4 employee registers</p>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+          <div class="flex items-center justify-between text-slate-400 mb-2">
+            <span class="text-xs font-semibold uppercase tracking-wider">Total Currency Notes</span>
+            <i data-lucide="banknote" class="w-5 h-5 text-amber-400"></i>
+          </div>
+          <span id="admin-total-notes" class="mono text-2xl font-bold text-amber-300">0</span>
+          <p class="text-[11px] text-slate-400 mt-1">Notes across all active tables</p>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+          <div class="flex items-center justify-between text-slate-400 mb-2">
+            <span class="text-xs font-semibold uppercase tracking-wider">Total Coins</span>
+            <i data-lucide="circle-dot" class="w-5 h-5 text-sky-400"></i>
+          </div>
+          <span id="admin-total-coins" class="mono text-2xl font-bold text-sky-300">0</span>
+          <p class="text-[11px] text-slate-400 mt-1">Coins across all active tables</p>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+          <div class="flex items-center justify-between text-slate-400 mb-2">
+            <span class="text-xs font-semibold uppercase tracking-wider">On-Duty Staff</span>
+            <i data-lucide="user-check" class="w-5 h-5 text-indigo-400"></i>
+          </div>
+          <span id="admin-active-staff" class="mono text-2xl font-bold text-indigo-300">0 / 4 Active</span>
+          <p class="text-[11px] text-slate-400 mt-1">Punched-in attendance today</p>
+        </div>
+      </div>
+
+      <!-- Action bar with Change Admin Password Button -->
+      <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+        <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+          <i data-lucide="layers" class="w-4 h-4 text-emerald-400"></i> Employee Table Breakdowns
+        </h3>
+        <div class="flex flex-wrap items-center gap-2.5">
+          <button onclick="openHistoryModal()" class="px-3.5 py-2 text-xs font-semibold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-xl transition flex items-center gap-1.5 shadow-md">
+            <i data-lucide="history" class="w-3.5 h-3.5"></i> Complete Ledger History
+          </button>
+          <button onclick="exportHistoryCSV()" class="px-3.5 py-2 text-xs font-semibold bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 border border-teal-500/30 rounded-xl transition flex items-center gap-1.5 shadow-md">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i> Export Ledger (CSV)
+          </button>
+          <button onclick="openEmployeeSettingsModal()" class="px-3.5 py-2 text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-xl transition flex items-center gap-1.5 shadow-md">
+            <i data-lucide="user-cog" class="w-3.5 h-3.5"></i> Edit Staff Names
+          </button>
+          <!-- Dedicated Change Admin Password Button -->
+          <button onclick="openChangeAdminPasswordModal()" class="px-3.5 py-2 text-xs font-semibold bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl transition flex items-center gap-1.5 shadow-md">
+            <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i> Change Admin Password
+          </button>
+          <button onclick="copyAdminSummary()" class="px-3.5 py-2 text-xs font-semibold bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl transition flex items-center gap-1.5 shadow-md shadow-emerald-500/10">
+            <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy WhatsApp Summary
+          </button>
+          <button onclick="window.print()" class="px-3.5 py-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-white rounded-xl border border-slate-700 transition flex items-center gap-1.5">
+            <i data-lucide="printer" class="w-3.5 h-3.5"></i> Print
+          </button>
+          <button onclick="resetAllEmployeeData()" class="px-3.5 py-2 text-xs font-semibold bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-xl transition flex items-center gap-1.5">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Reset Daily Balances
+          </button>
+        </div>
+      </div>
+
+      <!-- Staff Login Time & Attendance Timeline Section -->
+      <div class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 space-y-4 shadow-xl">
+        <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                <i data-lucide="clock-arrow-up" class="w-4 h-4"></i>
+              </span>
+              <h4 class="text-xs font-bold uppercase tracking-wider text-indigo-300">
+                Staff Login &amp; Punch-In Arrival Timeline Analytics
+              </h4>
+            </div>
+            <p class="text-xs text-slate-400 mt-1">Tracks daily employee check-in timestamps, arrival punctuality, and total shift volume</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span id="attendance-total-shifts-badge" class="text-xs font-mono font-bold bg-indigo-950/60 border border-indigo-500/30 text-indigo-300 px-3 py-1.5 rounded-xl shadow">0 Shifts Logged</span>
+          </div>
+        </div>
+
+        <!-- Attendance KPIs -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="bg-slate-950/80 border border-slate-800 p-3.5 rounded-xl">
+            <span class="text-[11px] font-semibold text-slate-400 block">Today's Active On-Duty</span>
+            <div id="att-kpi-active" class="mono text-lg font-bold text-emerald-400 mt-0.5">0 Staff</div>
+          </div>
+          <div class="bg-slate-950/80 border border-slate-800 p-3.5 rounded-xl">
+            <span class="text-[11px] font-semibold text-slate-400 block">Average Punch-In Time</span>
+            <div id="att-kpi-avg-time" class="mono text-lg font-bold text-indigo-300 mt-0.5">--:-- --</div>
+          </div>
+          <div class="bg-slate-950/80 border border-slate-800 p-3.5 rounded-xl">
+            <span class="text-[11px] font-semibold text-slate-400 block">Earliest Arrival Logged</span>
+            <div id="att-kpi-earliest" class="mono text-lg font-bold text-amber-300 mt-0.5">--:-- --</div>
+          </div>
+          <div class="bg-slate-950/80 border border-slate-800 p-3.5 rounded-xl">
+            <span class="text-[11px] font-semibold text-slate-400 block">Completed Shifts</span>
+            <div id="att-kpi-completed" class="mono text-lg font-bold text-teal-300 mt-0.5">0 Staff</div>
+          </div>
+        </div>
+
+        <!-- Attendance Graphs Row -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 pt-1">
+          <div class="lg:col-span-8 bg-slate-950/70 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-3">
+              <h5 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <i data-lucide="trending-up" class="w-4 h-4 text-indigo-400"></i> Punch-In Arrival Time by Date
+              </h5>
+              <span class="text-[10.5px] text-slate-400 font-mono">24-Hr Clock Timeline</span>
+            </div>
+            <div class="relative w-full h-64">
+              <canvas id="staffPunchInTimelineChart"></canvas>
+            </div>
+          </div>
+
+          <div class="lg:col-span-4 bg-slate-950/70 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-3">
+              <h5 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <i data-lucide="calendar" class="w-4 h-4 text-emerald-400"></i> Shifts Logged Per Staff
+              </h5>
+              <span class="text-[10.5px] text-slate-400">Total volume</span>
+            </div>
+            <div class="relative w-full h-64">
+              <canvas id="staffAttendanceFrequencyChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Punches Stream -->
+        <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-4">
+          <h5 class="text-xs font-bold uppercase tracking-wider text-slate-300 mb-2 flex items-center gap-1.5">
+            <i data-lucide="activity" class="w-3.5 h-3.5 text-indigo-400"></i> Recent Staff Login &amp; Punch Log Stream
+          </h5>
+          <div id="attendance-recent-stream" class="divide-y divide-slate-800/60 max-h-48 overflow-y-auto pr-1 text-xs">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Monthly Analytics & Leaderboard Section -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-5">
+        <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+          <div>
+            <span class="text-[11px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+              <i data-lucide="trophy" class="w-4 h-4 text-amber-400"></i> Store Collection Performance
+            </span>
+            <h3 class="text-base font-bold text-white mt-0.5">Staff Cash Collection &amp; Performance Ranking</h3>
+            <p class="text-xs text-slate-400">Cumulative store collections aggregated across all verified submissions</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span id="analytics-total-period" class="text-xs font-mono font-bold bg-slate-950 border border-slate-800 text-emerald-300 px-3.5 py-2 rounded-xl shadow">Total Store Cash: ₹0.00</span>
+          </div>
+        </div>
+
+        <!-- Grand Total Monthly Highlight Bar -->
+        <div class="bg-gradient-to-r from-emerald-950/60 via-slate-900 to-teal-950/60 border border-emerald-500/30 rounded-2xl p-5 flex flex-wrap items-center justify-between gap-4 shadow-xl">
+          <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xl font-black shadow-lg shadow-emerald-500/10">
+              ₹
+            </div>
+            <div>
+              <span class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold block">Total Cumulative Store Collection</span>
+              <h2 id="monthly-store-grand-total" class="mono text-2xl sm:text-3xl font-black text-emerald-400">₹0.00</h2>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-4 text-xs font-mono border-t sm:border-t-0 sm:border-l border-slate-800 pt-3 sm:pt-0 sm:pl-5">
+            <div>
+              <span class="text-slate-400 block text-[10.5px]">Total Submissions</span>
+              <span id="monthly-total-submissions" class="font-bold text-white text-sm">0 entries</span>
+            </div>
+            <div class="h-6 w-px bg-slate-800 hidden sm:block"></div>
+            <div>
+              <span class="text-slate-400 block text-[10.5px]">Top Performer</span>
+              <span id="monthly-top-performer" class="font-bold text-amber-300 text-sm">None</span>
+            </div>
+            <div class="h-6 w-px bg-slate-800 hidden sm:block"></div>
+            <div>
+              <span class="text-slate-400 block text-[10.5px]">Avg / Counter</span>
+              <span id="monthly-avg-counter" class="font-bold text-teal-300 text-sm">₹0.00</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Leaderboard Cards -->
+        <div id="analytics-leaderboard-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <!-- Dynamically populated -->
+        </div>
+
+        <!-- Graphs View -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 pt-2">
+          <div class="lg:col-span-7 bg-slate-950/70 border border-slate-800/80 rounded-xl p-4 flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-3">
+              <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <i data-lucide="bar-chart-3" class="w-4 h-4 text-emerald-400"></i> Cash Volume By Employee (₹)
+              </h4>
+              <span class="text-[11px] text-slate-400">Ranked by volume</span>
+            </div>
+            <div class="relative w-full h-64">
+              <canvas id="monthlyCollectionBarChart"></canvas>
+            </div>
+          </div>
+
+          <div class="lg:col-span-5 bg-slate-950/70 border border-slate-800/80 rounded-xl p-4 flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-3">
+              <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <i data-lucide="pie-chart" class="w-4 h-4 text-sky-400"></i> Collection Share (%)
+              </h4>
+              <span class="text-[11px] text-slate-400">Store Split</span>
+            </div>
+            <div class="relative w-full h-64 flex items-center justify-center">
+              <canvas id="monthlyCollectionPieChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Variance / Discrepancy Chart -->
+        <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-5 mt-4 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="p-1.5 rounded-lg bg-teal-500/10 text-teal-400 border border-teal-500/20">
+                  <i data-lucide="scale" class="w-4 h-4"></i>
+                </span>
+                <h4 class="text-xs font-bold uppercase tracking-wider text-slate-200">
+                  Physical Table Cash vs. Book Balance (Variance Audit)
+                </h4>
+              </div>
+              <p class="text-xs text-slate-400 mt-1">Comparison of actual drawer cash against entered books balance &amp; net discrepancy</p>
+            </div>
+            <div>
+              <div class="bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg text-xs">
+                <span class="text-slate-400 block text-[10px]">Net Store Variance</span>
+                <span id="variance-net-total" class="font-mono font-bold text-emerald-400">₹0.00</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
+            <div class="lg:col-span-8 relative w-full h-72">
+              <canvas id="monthlyVarianceChart"></canvas>
+            </div>
+            <div class="lg:col-span-4 flex flex-col gap-2.5" id="variance-summary-cards">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4 Counters Grid -->
+      <div id="admin-counters-grid" class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+  </main>
+
+  <!-- Complete Audit History Modal (Admin Only) -->
+  <div id="history-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 w-full max-w-4xl rounded-2xl p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+            <i data-lucide="history" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white">Complete Table Cash Submission Ledger</h3>
+            <p class="text-xs text-slate-400">Permanent audit records for all counter submissions and revisions</p>
+          </div>
+        </div>
+        <button onclick="closeHistoryModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Filters & Export -->
+      <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-950/60 p-3 rounded-xl border border-slate-800 shrink-0">
+        <div class="flex items-center gap-2">
+          <label class="text-xs text-slate-400 font-semibold">Filter Counter:</label>
+          <select id="history-filter-user" onchange="renderHistoryList()" class="bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded-lg px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-emerald-400">
+            <option value="all">All Counters</option>
+            <option value="emp1">Counter 1</option>
+            <option value="emp2">Counter 2</option>
+            <option value="emp3">Counter 3</option>
+            <option value="emp4">Counter 4</option>
+          </select>
+        </div>
+        <div class="flex items-center gap-3 text-xs">
+          <span id="history-entry-count" class="mono font-bold text-emerald-400">0 logs</span>
+          <button onclick="exportHistoryCSV()" class="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-lg font-semibold flex items-center gap-1 transition">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i> Export CSV
+          </button>
+        </div>
+      </div>
+
+      <!-- Scrollable History List -->
+      <div id="history-list" class="flex-1 overflow-y-auto space-y-3 pr-1">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <div class="pt-3 border-t border-slate-800 flex justify-end gap-2.5 shrink-0">
+        <button onclick="closeHistoryModal()" class="px-4 py-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition">
+          Close Ledger
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Manage Employee Profiles Modal (Admin Only) -->
+  <div id="settings-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center border border-indigo-500/20">
+            <i data-lucide="user-cog" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white">Manage Employee Profiles</h3>
+            <p class="text-xs text-slate-400">Customize staff names &amp; counter passwords</p>
+          </div>
+        </div>
+        <button onclick="closeEmployeeSettingsModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div id="employee-settings-list" class="space-y-3">
+        <!-- Dynamic list -->
+      </div>
+
+      <div class="pt-3 border-t border-slate-800 flex justify-end gap-2.5">
+        <button onclick="closeEmployeeSettingsModal()" class="px-4 py-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition">
+          Cancel
+        </button>
+        <button onclick="saveEmployeeSettings()" class="px-5 py-2 text-xs font-bold bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl shadow-lg transition flex items-center gap-1.5">
+          <i data-lucide="save" class="w-4 h-4"></i> Save Settings
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change Admin Password Modal -->
+  <div id="admin-password-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-amber-500/40 w-full max-w-md rounded-2xl p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center border border-amber-500/20">
+            <i data-lucide="shield-alert" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white">Change Admin Password</h3>
+            <p class="text-xs text-slate-400">Update master administrative login credentials</p>
+          </div>
+        </div>
+        <button onclick="closeChangeAdminPasswordModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form onsubmit="handleAdminPasswordChange(event)" class="space-y-3.5">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Current Admin Password</label>
+          <input type="password" id="admin-cur-password" placeholder="Enter current admin password" required class="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3 py-2 text-sm font-medium focus:ring-1 focus:ring-amber-400 outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">New Admin Password</label>
+          <input type="password" id="admin-new-password" placeholder="Enter new admin password" required class="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3 py-2 text-sm font-medium focus:ring-1 focus:ring-amber-400 outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Confirm New Password</label>
+          <input type="password" id="admin-confirm-password" placeholder="Re-enter new admin password" required class="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3 py-2 text-sm font-medium focus:ring-1 focus:ring-amber-400 outline-none">
+        </div>
+        <p id="admin-pwd-error-msg" class="text-xs text-rose-400 hidden"></p>
+
+        <div class="pt-2 border-t border-slate-800 flex justify-end gap-2.5">
+          <button type="button" onclick="closeChangeAdminPasswordModal()" class="px-4 py-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition">
+            Cancel
+          </button>
+          <button type="submit" class="px-5 py-2 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl shadow-lg transition flex items-center gap-1.5">
+            <i data-lucide="check" class="w-4 h-4"></i> Update Admin Password
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Employee Password Modal -->
+  <div id="emp-password-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+            <i data-lucide="shield-check" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white">Update Your Password</h3>
+            <p id="emp-pwd-subtitle" class="text-xs text-slate-400">Change counter login password</p>
+          </div>
+        </div>
+        <button onclick="closeChangePasswordModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form onsubmit="handleEmployeePasswordChange(event)" class="space-y-3.5">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Current Password</label>
+          <input type="password" id="emp-cur-password" placeholder="Enter current password" required class="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3 py-2 text-sm font-medium focus:ring-1 focus:ring-emerald-400 outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">New Password</label>
+          <input type="password" id="emp-new-password" placeholder="Enter new password" required class="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3 py-2 text-sm font-medium focus:ring-1 focus:ring-emerald-400 outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Confirm New Password</label>
+          <input type="password" id="emp-confirm-password" placeholder="Repeat new password" required class="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3 py-2 text-sm font-medium focus:ring-1 focus:ring-emerald-400 outline-none">
+        </div>
+        <div class="pt-2 border-t border-slate-800 flex justify-end gap-2.5">
+          <button type="button" onclick="closeChangePasswordModal()" class="px-4 py-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition">
+            Cancel
+          </button>
+          <button type="submit" class="px-5 py-2 text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl shadow-lg transition flex items-center gap-1.5">
+            <i data-lucide="check" class="w-4 h-4"></i> Update Password
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Custom Portal ID Modal -->
+  <div id="portal-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-lg bg-teal-500/10 text-teal-400 flex items-center justify-center border border-teal-500/20">
+            <i data-lucide="globe" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white">Set Portal Branch ID</h3>
+            <p class="text-xs text-slate-400">All devices sharing this ID connect to the same ledger</p>
+          </div>
+        </div>
+        <button onclick="closePortalModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Branch / Portal Identifier</label>
+          <input type="text" id="custom-portal-input" placeholder="e.g. main-branch" class="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3 py-2 text-sm font-medium focus:ring-1 focus:ring-teal-400 outline-none">
+        </div>
+        <div class="pt-2 border-t border-slate-800 flex justify-end gap-2.5">
+          <button type="button" onclick="closePortalModal()" class="px-4 py-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition">
+            Cancel
+          </button>
+          <button type="button" onclick="applyCustomPortalId()" class="px-5 py-2 text-xs font-bold bg-teal-500 hover:bg-teal-400 text-slate-950 rounded-xl shadow-lg transition flex items-center gap-1.5">
+            <i data-lucide="check" class="w-4 h-4"></i> Apply ID
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Employee Submission Success Modal -->
+  <div id="submit-success-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-emerald-500/50 w-full max-w-md rounded-2xl p-6 sm:p-7 shadow-2xl shadow-emerald-500/10 space-y-5 text-center">
+      <div class="w-16 h-16 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20">
+        <i data-lucide="check-circle" class="w-9 h-9 text-emerald-400"></i>
+      </div>
+
+      <div>
+        <span id="modal-success-badge" class="text-[11px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
+          Verified &amp; Recorded
+        </span>
+        <h3 id="modal-success-heading" class="text-xl font-bold text-white mt-2">Successfully Submitted!</h3>
+        <p id="modal-success-subtext" class="text-xs text-slate-400 mt-1">Your counter table cash and accounts book balance have been securely recorded.</p>
+      </div>
+
+      <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-4 text-left space-y-2.5 text-xs">
+        <div class="flex items-center justify-between pb-2 border-b border-slate-800/80">
+          <span class="text-slate-400">Staff Counter:</span>
+          <span id="modal-success-user" class="font-bold text-white">Counter 1</span>
+        </div>
+        <div class="flex items-center justify-between pb-2 border-b border-slate-800/80">
+          <span class="text-slate-400">Submitted At:</span>
+          <span id="modal-success-time" class="mono font-semibold text-emerald-300">--</span>
+        </div>
+        <div class="flex items-center justify-between pb-2 border-b border-slate-800/80">
+          <span class="text-slate-400">Physical Cash Count:</span>
+          <span id="modal-success-amount" class="mono font-bold text-emerald-400 text-sm">₹0.00</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-slate-400">Enteportal Balance / Status:</span>
+          <span id="modal-success-reconcile" class="font-semibold text-slate-200">Balanced (₹0.00)</span>
+        </div>
+      </div>
+
+      <div class="pt-2 flex flex-col sm:flex-row gap-2.5">
+        <button type="button" onclick="closeSubmitSuccessModal()" class="w-full py-2.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-sm transition shadow-lg shadow-emerald-500/20 active:scale-[0.98] flex items-center justify-center gap-1.5">
+          <i data-lucide="check" class="w-4 h-4"></i> OK, Continue
+        </button>
+        <button type="button" onclick="closeSubmitSuccessModal(); handleLogout();" class="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-sm transition border border-slate-700 active:scale-[0.98] flex items-center justify-center gap-1.5">
+          <i data-lucide="log-out" class="w-4 h-4"></i> Close &amp; Logout
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="border-t border-slate-800/80 bg-slate-950 py-3.5 text-center text-xs text-slate-500 no-print">
+    Table Cash Counter System • Complete Audit Ledger • Multi-Device Counter Access
+  </footer>
+
+  <!-- Application Logic & State Handlers (Firebase Realtime Sync + Local Backup) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
     import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
@@ -64,622 +892,4 @@
       { val: 200, type: 'note', label: '₹200' },
       { val: 100, type: 'note', label: '₹100' },
       { val: 50,  type: 'note', label: '₹50' },
-      { val: 20,  type: 'note', label: '₹20' },
-      { val: 10,  type: 'note', label: '₹10' },
-      { val: 5,   type: 'coin', label: '₹5' },
-      { val: 2,   type: 'coin', label: '₹2' },
-      { val: 1,   type: 'coin', label: '₹1' }
-    ];
-
-    const DEFAULT_USERS = {
-      admin: { name: 'Store Admin', role: 'admin', password: 'admin123' },
-      emp1:  { name: 'Counter 1 (Employee 1)', role: 'employee', password: '1234' },
-      emp2:  { name: 'Counter 2 (Employee 2)', role: 'employee', password: '1234' },
-      emp3:  { name: 'Counter 3 (Employee 3)', role: 'employee', password: '1234' },
-      emp4:  { name: 'Counter 4 (Employee 4)', role: 'employee', password: '1234' }
-    };
-
-    const DEFAULT_CASH_STATE = {
-      emp1: { 500:0, 200:0, 100:0, 50:0, 20:0, 10:0, 5:0, 2:0, 1:0, bookBalance: 0, comment: '', lastUpdated: null },
-      emp2: { 500:0, 200:0, 100:0, 50:0, 20:0, 10:0, 5:0, 2:0, 1:0, bookBalance: 0, comment: '', lastUpdated: null },
-      emp3: { 500:0, 200:0, 100:0, 50:0, 20:0, 10:0, 5:0, 2:0, 1:0, bookBalance: 0, comment: '', lastUpdated: null },
-      emp4: { 500:0, 200:0, 100:0, 50:0, 20:0, 10:0, 5:0, 2:0, 1:0, bookBalance: 0, comment: '', lastUpdated: null }
-    };
-
-    const DEFAULT_ATTENDANCE_STATE = {
-      emp1: { status: 'not_punched', punchIn: null, punchOut: null },
-      emp2: { status: 'not_punched', punchIn: null, punchOut: null },
-      emp3: { status: 'not_punched', punchIn: null, punchOut: null },
-      emp4: { status: 'not_punched', punchIn: null, punchOut: null }
-    };
-
-    // Detect ?portal= query param if shared via link
-    const urlParams = new URLSearchParams(window.location.search);
-    const urlPortal = urlParams.get('portal');
-    if (urlPortal) {
-      const cleanPortal = urlPortal.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
-      if (cleanPortal) localStorage.setItem('active_portal_id', cleanPortal);
-    }
-
-    // State Variables
-    window.portalUsers = JSON.parse(JSON.stringify(DEFAULT_USERS));
-    window.portalCashData = JSON.parse(JSON.stringify(DEFAULT_CASH_STATE));
-    window.portalHistoryLogs = [];
-    window.portalAttendance = JSON.parse(JSON.stringify(DEFAULT_ATTENDANCE_STATE));
-    window.portalAttendanceHistory = [];
-    window.currentUser = null;
-    window.activePortalId = localStorage.getItem('active_portal_id') || 'main-branch';
-
-    // Chart instances
-    window.chartInstanceBar = null;
-    window.chartInstancePie = null;
-    window.chartInstanceVariance = null;
-    window.chartInstancePunchTimeline = null;
-    window.chartInstancePunchFreq = null;
-
-    function saveLocalCache() {
-      const pid = window.activePortalId;
-      localStorage.setItem(`portal_${pid}_users`, JSON.stringify(window.portalUsers));
-      localStorage.setItem(`portal_${pid}_cash`, JSON.stringify(window.portalCashData));
-      localStorage.setItem(`portal_${pid}_history`, JSON.stringify(window.portalHistoryLogs));
-      localStorage.setItem(`portal_${pid}_attendance`, JSON.stringify(window.portalAttendance));
-      localStorage.setItem(`portal_${pid}_att_history`, JSON.stringify(window.portalAttendanceHistory));
-    }
-
-    // Load Local Data Fallback
-    function loadLocalData() {
-      const pid = window.activePortalId;
-      window.portalUsers = JSON.parse(JSON.stringify(DEFAULT_USERS));
-      window.portalCashData = JSON.parse(JSON.stringify(DEFAULT_CASH_STATE));
-      window.portalHistoryLogs = [];
-      window.portalAttendance = JSON.parse(JSON.stringify(DEFAULT_ATTENDANCE_STATE));
-      window.portalAttendanceHistory = [];
-
-      const u = localStorage.getItem(`portal_${pid}_users`);
-      const c = localStorage.getItem(`portal_${pid}_cash`);
-      const h = localStorage.getItem(`portal_${pid}_history`);
-      const a = localStorage.getItem(`portal_${pid}_attendance`);
-      const ah = localStorage.getItem(`portal_${pid}_att_history`);
-
-      if (u) { try { window.portalUsers = { ...DEFAULT_USERS, ...JSON.parse(u) }; } catch(e){} }
-      if (c) { try { window.portalCashData = { ...DEFAULT_CASH_STATE, ...JSON.parse(c) }; } catch(e){} }
-      if (h) { try { window.portalHistoryLogs = JSON.parse(h) || []; } catch(e){} }
-      if (a) { try { window.portalAttendance = { ...DEFAULT_ATTENDANCE_STATE, ...JSON.parse(a) }; } catch(e){} }
-      if (ah) { try { window.portalAttendanceHistory = JSON.parse(ah) || []; } catch(e){} }
-    }
-
-    // Real-time Firebase Listener for the active Portal ID
-    function subscribeToPortalCloud() {
-      if (activeUnsubscribe) {
-        activeUnsubscribe();
-        activeUnsubscribe = null;
-      }
-
-      const pid = window.activePortalId;
-      const portalRef = ref(db, `portals/${pid}`);
-
-      activeUnsubscribe = onValue(portalRef, (snapshot) => {
-        setConnectionStatus(true);
-        const cloudVal = snapshot.val();
-
-        if (cloudVal) {
-          if (cloudVal.users) window.portalUsers = { ...DEFAULT_USERS, ...cloudVal.users };
-          if (cloudVal.cashData) {
-            ['emp1', 'emp2', 'emp3', 'emp4'].forEach(k => {
-              window.portalCashData[k] = { ...DEFAULT_CASH_STATE[k], ...(cloudVal.cashData[k] || {}) };
-            });
-          }
-          window.portalHistoryLogs = Array.isArray(cloudVal.historyLogs)
-            ? cloudVal.historyLogs
-            : (cloudVal.historyLogs ? Object.values(cloudVal.historyLogs) : []);
-          if (cloudVal.attendance) {
-            ['emp1', 'emp2', 'emp3', 'emp4'].forEach(k => {
-              window.portalAttendance[k] = { ...DEFAULT_ATTENDANCE_STATE[k], ...(cloudVal.attendance[k] || {}) };
-            });
-          }
-          window.portalAttendanceHistory = Array.isArray(cloudVal.attendanceHistory)
-            ? cloudVal.attendanceHistory
-            : (cloudVal.attendanceHistory ? Object.values(cloudVal.attendanceHistory) : []);
-
-          saveLocalCache();
-          populateLoginDropdown();
-
-          if (window.currentUser) {
-            if (window.currentUser.role === 'admin') {
-              renderAdminDashboard();
-            } else {
-              renderEmployeeCalculator(false);
-            }
-          }
-        } else {
-          // Initialize cloud node if this portal doesn't exist in Firebase yet
-          pushToCloud();
-        }
-      }, (error) => {
-        console.error("Firebase sync error:", error);
-        setConnectionStatus(false);
-      });
-    }
-
-    async function pushToCloud() {
-      saveLocalCache();
-      const pid = window.activePortalId;
-      try {
-        await set(ref(db, `portals/${pid}`), {
-          users: window.portalUsers,
-          cashData: window.portalCashData,
-          historyLogs: window.portalHistoryLogs,
-          attendance: window.portalAttendance,
-          attendanceHistory: window.portalAttendanceHistory,
-          updatedAt: Date.now()
-        });
-        setConnectionStatus(true);
-      } catch (err) {
-        console.error("Cloud save failed, kept in local backup:", err);
-        setConnectionStatus(false);
-        showToast("Saved locally (Cloud offline)");
-      }
-    }
-    window.pushToCloud = pushToCloud;
-
-    // Time Formatting Utilities
-    function getCurrentDateTimeStamp() {
-      const now = new Date();
-      const datePart = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-      const timePart = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
-      return `${datePart} at ${timePart}`;
-    }
-    window.getCurrentDateTimeStamp = getCurrentDateTimeStamp;
-
-    function parseTimeToDecimalHours(dateObj) {
-      if (!dateObj || isNaN(dateObj.getTime())) return null;
-      return dateObj.getHours() + (dateObj.getMinutes() / 60) + (dateObj.getSeconds() / 3600);
-    }
-
-    function formatDecimalHoursToString(dec) {
-      if (dec === null || dec === undefined || isNaN(dec)) return "--:-- --";
-      const totalMinutes = Math.round(dec * 60);
-      const hours = Math.floor(totalMinutes / 60) % 24;
-      const minutes = totalMinutes % 60;
-      const period = hours >= 12 ? 'PM' : 'AM';
-      const displayHour = hours % 12 === 0 ? 12 : hours % 12;
-      return `${displayHour < 10 ? '0' : ''}${displayHour}:${minutes < 10 ? '0' : ''}${minutes} ${period}`;
-    }
-
-    function updatePortalDisplays() {
-      const disp = document.getElementById('current-portal-display');
-      if (disp) disp.innerText = window.activePortalId;
-
-      const shareLinkEl = document.getElementById('shareable-portal-url');
-      if (shareLinkEl) {
-        shareLinkEl.innerText = `${window.location.origin}${window.location.pathname}?portal=${encodeURIComponent(window.activePortalId)}`;
-      }
-    }
-
-    function populateLoginDropdown() {
-      const users = window.portalUsers || {};
-      const select = document.getElementById('login-username');
-      if (!select) return;
-      
-      const adminName = users.admin ? users.admin.name : 'Store Admin';
-      const e1 = users.emp1 ? users.emp1.name : 'Counter 1';
-      const e2 = users.emp2 ? users.emp2.name : 'Counter 2';
-      const e3 = users.emp3 ? users.emp3.name : 'Counter 3';
-      const e4 = users.emp4 ? users.emp4.name : 'Counter 4';
-
-      const currentVal = select.value;
-      select.innerHTML = `
-        <option value="admin">${adminName} (All Counters View)</option>
-        <option value="emp1">${e1}</option>
-        <option value="emp2">${e2}</option>
-        <option value="emp3">${e3}</option>
-        <option value="emp4">${e4}</option>
-      `;
-      if (currentVal) select.value = currentVal;
-    }
-
-    function handleLogin(e) {
-      e.preventDefault();
-      const users = window.portalUsers;
-      const username = document.getElementById('login-username').value;
-      const pass = document.getElementById('login-password').value;
-
-      const userConfig = users[username];
-      if (!userConfig || userConfig.password !== pass) {
-        showToast("Incorrect password. Please try again.");
-        return;
-      }
-
-      window.currentUser = { username, ...userConfig };
-      document.getElementById('login-password').value = '';
-      
-      document.getElementById('header-actions').classList.remove('hidden');
-      document.getElementById('header-actions').classList.add('flex');
-      document.getElementById('logged-user-display').innerText = window.currentUser.name;
-
-      document.getElementById('login-view').classList.add('hidden');
-      if (window.currentUser.role === 'admin') {
-        renderAdminDashboard();
-        document.getElementById('admin-view').classList.remove('hidden');
-      } else {
-        renderEmployeeCalculator(true);
-        document.getElementById('employee-view').classList.remove('hidden');
-      }
-
-      showToast(`Welcome, ${window.currentUser.name}`);
-      if (window.lucide) lucide.createIcons();
-    }
-    window.handleLogin = handleLogin;
-
-    function handleLogout() {
-      window.currentUser = null;
-      document.getElementById('header-actions').classList.add('hidden');
-      document.getElementById('header-actions').classList.remove('flex');
-      document.getElementById('employee-view').classList.add('hidden');
-      document.getElementById('admin-view').classList.add('hidden');
-      document.getElementById('login-view').classList.remove('hidden');
-      populateLoginDropdown();
-      showToast("Logged out successfully");
-      if (window.lucide) lucide.createIcons();
-    }
-    window.handleLogout = handleLogout;
-
-    // Step +/- Handler
-    function stepCount(denomVal, delta) {
-      const input = document.getElementById(`qty-${denomVal}`);
-      let cur = parseInt(input.value) || 0;
-      cur = Math.max(0, cur + delta);
-      input.value = cur === 0 ? '' : cur;
-      recalculateEmployee();
-    }
-    window.stepCount = stepCount;
-
-    // Attendance Handlers
-    async function handlePunchIn() {
-      if (!window.currentUser || window.currentUser.role !== 'employee') return;
-      const u = window.currentUser.username;
-      const stamp = getCurrentDateTimeStamp();
-      const epoch = Date.now();
-
-      window.portalAttendance[u] = {
-        status: 'on_duty',
-        punchIn: stamp,
-        punchOut: null
-      };
-
-      window.portalAttendanceHistory.unshift({
-        type: 'PUNCH_IN',
-        username: u,
-        staffName: window.currentUser.name,
-        timestampStr: stamp,
-        timestampEpoch: epoch
-      });
-
-      await pushToCloud();
-      renderEmployeeCalculator(false);
-      showToast(`Punched In at ${stamp}`);
-    }
-    window.handlePunchIn = handlePunchIn;
-
-    async function handlePunchOut() {
-      if (!window.currentUser || window.currentUser.role !== 'employee') return;
-      const u = window.currentUser.username;
-      const stamp = getCurrentDateTimeStamp();
-      const epoch = Date.now();
-
-      const cur = window.portalAttendance[u] || {};
-      window.portalAttendance[u] = {
-        status: 'completed',
-        punchIn: cur.punchIn || stamp,
-        punchOut: stamp
-      };
-
-      window.portalAttendanceHistory.unshift({
-        type: 'PUNCH_OUT',
-        username: u,
-        staffName: window.currentUser.name,
-        timestampStr: stamp,
-        timestampEpoch: epoch
-      });
-
-      await pushToCloud();
-      renderEmployeeCalculator(false);
-      showToast(`Punched Out at ${stamp}`);
-    }
-    window.handlePunchOut = handlePunchOut;
-
-    // Render Employee View
-    function renderEmployeeCalculator(resetFromData = true) {
-      if (!window.currentUser || window.currentUser.role !== 'employee') return;
-
-      const users = window.portalUsers;
-      const myInfo = users[window.currentUser.username] || window.currentUser;
-      document.getElementById('emp-counter-title').innerText = `${myInfo.name} - Table Cash`;
-      
-      const counts = (window.portalCashData && window.portalCashData[window.currentUser.username]) || {};
-      const hasExistingSubmission = !!counts.lastUpdated;
-      
-      const stampEl = document.getElementById('emp-last-timestamp');
-      if (stampEl) stampEl.innerText = counts.lastUpdated || 'Not yet submitted today';
-
-      const editBadge = document.getElementById('emp-edit-badge');
-      const resubmitHint = document.getElementById('emp-resubmit-hint');
-      const saveBtnText = document.getElementById('emp-save-btn-text');
-      const saveBtnIcon = document.getElementById('emp-save-btn-icon');
-
-      if (hasExistingSubmission) {
-        if (editBadge) editBadge.classList.remove('hidden');
-        if (resubmitHint) resubmitHint.classList.remove('hidden');
-        if (saveBtnText) saveBtnText.innerText = 'Update & Resubmit Table Cash';
-        if (saveBtnIcon) saveBtnIcon.setAttribute('data-lucide', 'refresh-cw');
-      } else {
-        if (editBadge) editBadge.classList.add('hidden');
-        if (resubmitHint) resubmitHint.classList.add('hidden');
-        if (saveBtnText) saveBtnText.innerText = 'Save Table Cash & Enteportal Balance';
-        if (saveBtnIcon) saveBtnIcon.setAttribute('data-lucide', 'cloud-upload');
-      }
-
-      // Update Attendance Card UI
-      const attInfo = (window.portalAttendance && window.portalAttendance[window.currentUser.username]) || { status: 'not_punched' };
-      const attPill = document.getElementById('emp-att-status-pill');
-      const inEl = document.getElementById('emp-punch-in-time');
-      const outEl = document.getElementById('emp-punch-out-time');
-      const btnIn = document.getElementById('btn-punch-in');
-      const btnOut = document.getElementById('btn-punch-out');
-
-      if (inEl) inEl.innerText = attInfo.punchIn || '--:-- --';
-      if (outEl) outEl.innerText = attInfo.punchOut || '--:-- --';
-
-      if (attPill) {
-        if (attInfo.status === 'on_duty') {
-          attPill.innerText = 'Active On Duty';
-          attPill.className = 'text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30';
-          if (btnIn) btnIn.disabled = true;
-          if (btnIn) btnIn.className = 'flex-1 py-2 px-3 bg-slate-800 text-slate-500 rounded-xl text-xs font-bold cursor-not-allowed';
-          if (btnOut) btnOut.disabled = false;
-          if (btnOut) btnOut.className = 'flex-1 py-2 px-3 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 font-bold rounded-xl text-xs transition';
-        } else if (attInfo.status === 'completed') {
-          attPill.innerText = 'Shift Completed';
-          attPill.className = 'text-[11px] font-bold px-2.5 py-1 rounded-full bg-teal-500/10 text-teal-300 border border-teal-500/30';
-          if (btnIn) btnIn.disabled = false;
-          if (btnIn) btnIn.className = 'flex-1 py-2 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition';
-          if (btnOut) btnOut.disabled = true;
-          if (btnOut) btnOut.className = 'flex-1 py-2 px-3 bg-slate-800 text-slate-500 rounded-xl text-xs font-bold cursor-not-allowed';
-        } else {
-          attPill.innerText = 'Not Punched In';
-          attPill.className = 'text-[11px] font-semibold px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700';
-          if (btnIn) btnIn.disabled = false;
-          if (btnIn) btnIn.className = 'flex-1 py-2 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition';
-          if (btnOut) btnOut.disabled = true;
-          if (btnOut) btnOut.className = 'flex-1 py-2 px-3 bg-slate-800 text-slate-500 rounded-xl text-xs font-bold cursor-not-allowed';
-        }
-      }
-
-      const bookBalInput = document.getElementById('emp-book-balance');
-      if (bookBalInput && resetFromData) {
-        bookBalInput.value = (counts.bookBalance !== undefined && counts.bookBalance !== null && counts.bookBalance !== '') ? counts.bookBalance : '';
-      }
-
-      const commentInput = document.getElementById('emp-reconciliation-comment');
-      if (commentInput && resetFromData) {
-        commentInput.value = counts.comment || '';
-      }
-
-      const tbody = document.getElementById('denom-rows');
-      if (!resetFromData && tbody && tbody.children.length > 0) {
-        recalculateEmployee();
-        return;
-      }
-
-      if (tbody) {
-        tbody.innerHTML = '';
-        window.DENOMINATIONS.forEach(d => {
-          const qty = counts[d.val] || '';
-          const tr = document.createElement('tr');
-          tr.className = "hover:bg-slate-800/40 transition-colors";
-          tr.innerHTML = `
-            <td class="py-2.5 px-3">
-              <span class="font-bold mono text-sm text-slate-100">${d.label}</span>
-            </td>
-            <td class="py-2.5 px-3 text-center">
-              ${d.type === 'note' 
-                ? '<span class="text-[11px] font-semibold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">Note</span>' 
-                : '<span class="text-[11px] font-semibold text-sky-300 bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/20">Coin</span>'}
-            </td>
-            <td class="py-2.5 px-3 text-center">
-              <div class="flex items-center justify-center gap-1.5">
-                <button type="button" onclick="stepCount(${d.val}, -1)" class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-bold flex items-center justify-center border border-slate-700 active:scale-95 transition">-</button>
-                <input 
-                  type="number" 
-                  id="qty-${d.val}" 
-                  min="0" 
-                  placeholder="0" 
-                  value="${qty}"
-                  oninput="recalculateEmployee()"
-                  onfocus="this.select()"
-                  class="mono w-20 text-center bg-slate-950 border border-slate-700 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 rounded-lg py-1 px-2 text-sm font-bold text-white placeholder-slate-600 outline-none transition"
-                >
-                <button type="button" onclick="stepCount(${d.val}, 1)" class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-bold flex items-center justify-center border border-slate-700 active:scale-95 transition">+</button>
-              </div>
-            </td>
-            <td class="py-2.5 px-3 text-right mono font-bold text-slate-200" id="subtotal-${d.val}">
-              ₹0.00
-            </td>
-          `;
-          tbody.appendChild(tr);
-        });
-      }
-
-      recalculateEmployee();
-      if (window.lucide) lucide.createIcons();
-    }
-    window.renderEmployeeCalculator = renderEmployeeCalculator;
-
-    function recalculateEmployee() {
-      let totalAmount = 0;
-      let totalNotes = 0;
-      let totalCoins = 0;
-
-      window.DENOMINATIONS.forEach(d => {
-        const input = document.getElementById(`qty-${d.val}`);
-        const qty = input ? (parseInt(input.value) || 0) : 0;
-        const subtotal = qty * d.val;
-        totalAmount += subtotal;
-
-        if (d.type === 'note') totalNotes += qty;
-        else totalCoins += qty;
-
-        const subEl = document.getElementById(`subtotal-${d.val}`);
-        if (subEl) subEl.innerText = formatINR(subtotal);
-      });
-
-      const topTotalEl = document.getElementById('emp-top-total');
-      if (topTotalEl) topTotalEl.innerText = formatINR(totalAmount);
-
-      const reconcilePhysicalEl = document.getElementById('emp-reconcile-physical');
-      if (reconcilePhysicalEl) reconcilePhysicalEl.innerText = formatINR(totalAmount);
-
-      const notesEl = document.getElementById('emp-total-notes');
-      if (notesEl) notesEl.innerText = `${totalNotes} notes`;
-
-      const coinsEl = document.getElementById('emp-total-coins');
-      if (coinsEl) coinsEl.innerText = `${totalCoins} coins`;
-
-      const pcsEl = document.getElementById('emp-total-pieces');
-      if (pcsEl) pcsEl.innerText = `${totalNotes + totalCoins} pcs`;
-
-      // Book Balance Reconciliation Logic
-      const bookInput = document.getElementById('emp-book-balance');
-      const diffValEl = document.getElementById('emp-diff-value');
-      const diffLblEl = document.getElementById('emp-diff-label');
-      const diffCardEl = document.getElementById('emp-diff-card');
-
-      if (bookInput && diffValEl && diffLblEl && diffCardEl) {
-        const rawBookVal = bookInput.value.trim();
-        if (rawBookVal === '') {
-          diffValEl.innerText = '₹0.00';
-          diffValEl.className = 'mono text-xl font-black text-slate-400';
-          diffLblEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-slate-500"></span> Enter Enteportal balance';
-          diffCardEl.className = 'bg-slate-950/80 border border-slate-800 rounded-xl p-3 transition-colors';
-        } else {
-          const bookVal = parseFloat(rawBookVal) || 0;
-          const diff = totalAmount - bookVal;
-
-          if (Math.abs(diff) < 0.01) {
-            diffValEl.innerText = '₹0.00';
-            diffValEl.className = 'mono text-xl font-black text-emerald-400';
-            diffLblEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400"></span> Exactly Balanced (Matched)';
-            diffCardEl.className = 'bg-slate-950/80 border border-emerald-500/40 rounded-xl p-3 transition-colors shadow-lg shadow-emerald-500/5';
-          } else if (diff > 0) {
-            diffValEl.innerText = `+${formatINR(diff)}`;
-            diffValEl.className = 'mono text-xl font-black text-teal-300';
-            diffLblEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-teal-400"></span> Surplus / Cash Excess (+₹)';
-            diffCardEl.className = 'bg-slate-950/80 border border-teal-500/40 rounded-xl p-3 transition-colors shadow-lg shadow-teal-500/5';
-          } else {
-            diffValEl.innerText = `-${formatINR(Math.abs(diff))}`;
-            diffValEl.className = 'mono text-xl font-black text-rose-400';
-            diffLblEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-rose-400 animate-pulse"></span> Deficit / Cash Shortage (-₹)';
-            diffCardEl.className = 'bg-slate-950/80 border border-rose-500/40 rounded-xl p-3 transition-colors shadow-lg shadow-rose-500/5';
-          }
-        }
-      }
-    }
-    window.recalculateEmployee = recalculateEmployee;
-
-    async function saveAndSyncCloud() {
-      if (!window.currentUser || window.currentUser.role !== 'employee') return;
-
-      const existingData = (window.portalCashData && window.portalCashData[window.currentUser.username]) || {};
-      const isResubmission = !!existingData.lastUpdated;
-
-      const updatedCounts = {};
-      let submitTotal = 0;
-      let submitNotes = 0;
-      let submitCoins = 0;
-
-      window.DENOMINATIONS.forEach(d => {
-        const input = document.getElementById(`qty-${d.val}`);
-        const qty = input ? (parseInt(input.value) || 0) : 0;
-        updatedCounts[d.val] = qty;
-        submitTotal += (qty * d.val);
-        if (d.type === 'note') submitNotes += qty;
-        else submitCoins += qty;
-      });
-
-      const bookInput = document.getElementById('emp-book-balance');
-      const bookBalanceVal = (bookInput && bookInput.value.trim() !== '') ? parseFloat(bookInput.value.trim()) : 0;
-      const differenceVal = submitTotal - bookBalanceVal;
-      updatedCounts.bookBalance = bookBalanceVal;
-
-      const commentInput = document.getElementById('emp-reconciliation-comment');
-      const commentVal = commentInput ? commentInput.value.trim() : '';
-      updatedCounts.comment = commentVal;
-
-      const savedStamp = getCurrentDateTimeStamp();
-      const nowEpoch = Date.now();
-      updatedCounts.lastUpdated = savedStamp;
-      updatedCounts.isRevised = isResubmission;
-      window.portalCashData[window.currentUser.username] = updatedCounts;
-
-      if (!Array.isArray(window.portalHistoryLogs)) window.portalHistoryLogs = [];
-      const users = window.portalUsers || {};
-      const staffName = (users[window.currentUser.username] && users[window.currentUser.username].name) || window.currentUser.name || 'Counter';
-
-      window.portalHistoryLogs.unshift({
-        id: 'hist_' + nowEpoch + '_' + Math.random().toString(36).substring(2, 6),
-        username: window.currentUser.username,
-        staffName: staffName,
-        timestampStr: savedStamp,
-        timestampEpoch: nowEpoch,
-        totalAmount: submitTotal,
-        bookBalance: bookBalanceVal,
-        difference: differenceVal,
-        comment: commentVal,
-        notesCount: submitNotes,
-        coinsCount: submitCoins,
-        isRevised: isResubmission,
-        denominations: { ...updatedCounts }
-      });
-
-      await pushToCloud();
-      showToast(isResubmission ? `Synced & updated at: ${savedStamp}` : `Synced to cloud at: ${savedStamp}`);
-
-      openSubmitSuccessModal({
-        staffName: staffName,
-        timestamp: savedStamp,
-        totalAmount: submitTotal,
-        bookBalance: bookBalanceVal,
-        diff: differenceVal,
-        isRevised: isResubmission
-      });
-      renderEmployeeCalculator(false);
-    }
-    window.saveAndSyncCloud = saveAndSyncCloud;
-
-    function openSubmitSuccessModal(info) {
-      const modal = document.getElementById('submit-success-modal');
-      if (!modal) return;
-
-      const userEl = document.getElementById('modal-success-user');
-      const timeEl = document.getElementById('modal-success-time');
-      const amountEl = document.getElementById('modal-success-amount');
-      const reconcileEl = document.getElementById('modal-success-reconcile');
-      const badgeEl = document.getElementById('modal-success-badge');
-      const headingEl = document.getElementById('modal-success-heading');
-      const subtextEl = document.getElementById('modal-success-subtext');
-
-      if (userEl) userEl.innerText = info.staffName;
-      if (timeEl) timeEl.innerText = info.timestamp;
-      if (amountEl) amountEl.innerText = formatINR(info.totalAmount);
-
-      if (info.isRevised) {
-        if (badgeEl) {
-          badgeEl.innerText = "Revised & Resynchronized";
-          badgeEl.className = "text-[11px] font-bold uppercase tracking-wider text-amber-300 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20";
-        }
-        if (headingEl) headingEl.innerText = "Successfully Updated & Resubmitted!";
-        if (subtextEl) subtextEl.innerText = "Your corrected table cash and updated book balance have been re-saved to the cloud.";
-      } else {
-        if (badgeEl) {
-          badgeEl.innerText = "Verified & Synchronized";
-          badgeEl.className = "text-[11px] font-bold uppercase
+      { val: 20,  type: 'note', label: '₹
