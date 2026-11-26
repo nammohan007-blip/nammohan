@@ -269,12 +269,17 @@
         </div>
       </div>
 
-      <!-- Attendance Analytics -->
-      <div class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-5 space-y-4 shadow-xl">
-        <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
-          <div>
-            <div class="flex items-center gap-2">
-              <span class="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"><i data-lucide="clock-arrow-up" class="w-4 h-4"></i></span>
-              <h4 class="text-xs font-bold uppercase tracking-wider text-indigo-300">Staff Login &amp; Punch-In Arrival Timeline Analytics</h4>
-            </div>
-            <p class="text-xs text-slate-400 mt-
+     // App Initialization (runs immediately once module loads)
+ function initPortalApp() {
+   loadLocalData();
+   updatePortalDisplays();
+   populateLoginDropdown();
+   subscribeToPortalCloud();
+   if (window.lucide) lucide.createIcons();
+ }
+
+ if (document.readyState === 'loading') {
+   document.addEventListener('DOMContentLoaded', initPortalApp);
+ } else {
+   initPortalApp();
+ }
