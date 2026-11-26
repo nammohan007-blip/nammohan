@@ -275,6 +275,12 @@
    updatePortalDisplays();
    populateLoginDropdown();
    subscribeToPortalCloud();
+      // App Initialization (runs immediately once module loads)
+ function initPortalApp() {
+   loadLocalData();
+   updatePortalDisplays();
+   populateLoginDropdown();
+   subscribeToPortalCloud();
    if (window.lucide) lucide.createIcons();
  }
 
